@@ -66,22 +66,6 @@ class OverlayNetwork():
         self._last_id += 1
         return f'B{self._last_id}'
 
-    def reachable_from_source(self):
-        meta_source = nx.utils.generate_unique_node()
-        self.graph.add_node(meta_source)
-        for source in self.sources:
-            self.graph.add_edge(meta_source, source)
-        dfs_edges = nx.dfs_edges(self.graph, meta_source)
-        reachable = [ node for (_, node) in dfs_edges ]
-        self.graph.remove_node(meta_source)
-        return reachable
-
-    def can_reach_sink(self):
-        dfs_edges = nx.dfs_edges(self.graph.reverse(), self.sink)
-        reachable = [self.sink]
-        reachable.extend([ node for (node, _) in dfs_edges ])
-        return reachable
-
     def add_link(
             self,
             source: str,
@@ -91,7 +75,7 @@ class OverlayNetwork():
         self.graph.add_edge(source, sink)
 
 def random_overlay(
-        rand=np.random,
+        rand,
         pairwise_connection_prob=0.02,
         min_blocks=2,
         max_blocks=10,
@@ -118,22 +102,36 @@ def random_overlay(
             if rand.random() < pairwise_connection_prob:
                 overlay.add_link(source, sink)
 
-    reachable_from_source = overlay.reachable_from_source()
-    can_reach_sink = overlay.can_reach_sink()
+    accessible_from_source = set()
+    not_accessible_from_source = set()
+    has_path_to_sink = set()
+    no_path_to_sink = set()
+    # TODO optimize
+    for node in overlay.graph.nodes():
+        if nx.has_path(overlay.graph, node, overlay.sink):
+            has_path_to_sink.add(node)
+        else:
+            no_path_to_sink.add(node)
 
-    reachable_from_source_set = set(reachable_from_source)
-    can_reach_sink_set = set(can_reach_sink)
+        source_path_found = False
+        for source in overlay.sources:
+            if nx.has_path(overlay.graph, source, node):
+                source_path_found = True
+                break
+        if source_path_found:
+            accessible_from_source.add(node)
+        else:
+            not_accessible_from_source.add(node)
 
-    for node in overlay.intermediates:
-        if node not in reachable_from_source_set:
-            connection = rand.choice(reachable_from_source)
-            overlay.add_link(connection, node)
-            reachable_from_source.append(node)
+    for node in not_accessible_from_source:
+        connection = rand.choice(list(accessible_from_source))
+        overlay.add_link(connection, node)
+        accessible_from_source.add(node)
 
-        if node not in can_reach_sink_set:
-            connection = rand.choice(can_reach_sink)
-            overlay.add_link(node, connection)
-            can_reach_sink.append(node)
+    for node in no_path_to_sink:
+        connection = rand.choice(list(has_path_to_sink))
+        overlay.add_link(node, connection)
+        has_path_to_sink.add(node)
 
     return overlay
 
