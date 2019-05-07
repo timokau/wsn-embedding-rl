@@ -384,9 +384,7 @@ class PartialEmbedding():
             timeslot: int,
     ):
         """Take an action represented by an edge and update the graph"""
-        # All paths have to start with an embedded node. Other edges are
-        # only present to encode full overlay information.
-        if not self.graph.node[source]['chosen']:
+        if (source, sink, timeslot) not in self.possibilities():
             return False
 
         self.remove_edges_between(source, sink)

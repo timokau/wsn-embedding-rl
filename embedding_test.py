@@ -406,3 +406,49 @@ def test_completion_detection():
     embedding.take_action(esource, esink, 0)
 
     assert embedding.is_complete()
+
+def test_parallel_receive_impossible():
+    """
+    Tests that receiving from two sender nodes at the same time is
+    impossible
+    """
+    infra = InfrastructureNetwork()
+
+    nsource1 = infra.add_source(
+        pos=(0, 0),
+        transmit_power_dbm=30,
+    )
+    nsource2 = infra.add_source(
+        pos=(3, 0),
+        transmit_power_dbm=30,
+    )
+    nsink = infra.set_sink(
+        pos=(2, 0),
+        transmit_power_dbm=30,
+    )
+
+    overlay = OverlayNetwork()
+
+    esource1 = ENode(overlay.add_source(), nsource1)
+    esource2 = ENode(overlay.add_source(), nsource2)
+    esink = ENode(overlay.set_sink(), nsink)
+
+    # two incoming connections to sink
+    overlay.add_link(esource1.block, esink.block)
+    overlay.add_link(esource2.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[
+            (esource1.block, esource1.node),
+            (esource2.block, esource2.node),
+        ],
+        timeslots=1,
+        sinrth=2.0,
+    )
+
+    # Try to send two signals to sink at the same timeslot. This should
+    # fail, as either one signal should overshadow the other.
+    embedding.take_action(esource1, esink, 0)
+    assert not embedding.take_action(esource2, esink, 0)
