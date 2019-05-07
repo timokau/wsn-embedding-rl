@@ -1,6 +1,6 @@
 """Model of wireless overlay networks"""
 
-from typing import List, Tuple
+from typing import List, Tuple, Iterable
 
 import networkx as nx
 
@@ -278,15 +278,11 @@ class PartialEmbedding():
 
             # check if link would invalidate sinr of chosen action
             for (u, v) in self._all_known_transmissions_at(timeslot):
-                interference_dbm = self.infra.power_received_dbm(
-                    source.node,
-                    v.node,
-                )
                 new_sinr = self.known_sinr(
                     u.node,
                     v.node,
                     timeslot=timeslot,
-                    additional_interference_dbm=interference_dbm,
+                    additional_senders={source.node},
                 )
                 if new_sinr < self.sinrth:
                     self.remove_link(source, target, timeslot)
@@ -310,6 +306,7 @@ class PartialEmbedding():
             self,
             node: str,
             timeslot: int,
+            additional_senders: Iterable[str] = (),
     ):
         """
         Calculates the amount of power a node receives (signal+noise) at
@@ -323,9 +320,12 @@ class PartialEmbedding():
         received_power_watt = 0
         transmissions = self._all_known_transmissions_at(timeslot)
 
-        for (transmission_source, _) in transmissions:
+        # use a set to make sure broadcasts aren't counted twice
+        sending_nodes = {u.node for (u, v) in transmissions}
+        sending_nodes = sending_nodes.union(additional_senders)
+        for sender in sending_nodes:
             p_r = self.infra.power_received_dbm(
-                transmission_source.node,
+                sender,
                 node,
             )
             received_power_watt += wsignal.dbm_to_watt(p_r)
@@ -336,7 +336,7 @@ class PartialEmbedding():
             source_node: str,
             target_node: str,
             timeslot: int,
-            additional_interference_dbm: float = 0,
+            additional_senders: Iterable[str] = (),
             # https://www.quora.com/How-high-is-the-ambient-RF-noise-floor-in-the-2-4-GHz-spectrum-in-downtown-San-Francisco
             noise_floor_dbm: float = -80
     ):
@@ -348,9 +348,10 @@ class PartialEmbedding():
             source_node,
             target_node,
         )
-        received_interference_dbm = wsignal.add_dbm(
-            self.power_at_node(target_node, timeslot),
-            additional_interference_dbm,
+        received_interference_dbm = self.power_at_node(
+            target_node,
+            timeslot,
+            additional_senders=additional_senders,
         )
 
         return wsignal.sinr(

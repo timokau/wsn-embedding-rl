@@ -452,3 +452,52 @@ def test_parallel_receive_impossible():
     # fail, as either one signal should overshadow the other.
     embedding.take_action(esource1, esink, 0)
     assert not embedding.take_action(esource2, esink, 0)
+
+def test_broadcast_possible():
+    """Tests that broadcast is possible despite SINR constraints"""
+    infra = InfrastructureNetwork()
+
+    # One source, one sink, one intermediate
+    nsource = infra.add_source(
+        pos=(0, 0),
+        transmit_power_dbm=30,
+    )
+    ninterm = infra.add_intermediate(
+        pos=(1, 2),
+        transmit_power_dbm=30,
+    )
+    nsink = infra.set_sink(
+        pos=(2, 0),
+        transmit_power_dbm=30,
+    )
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(overlay.add_source(), nsource)
+    einterm = ENode(overlay.add_intermediate(), ninterm)
+    esink = ENode(overlay.set_sink(), nsink)
+
+    # fork
+    overlay.add_link(esource.block, einterm.block)
+    overlay.add_link(esource.block, esink.block)
+
+    # make complete
+    overlay.add_link(einterm.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[
+            (esource.block, esource.node),
+        ],
+        timeslots=2,
+        sinrth=2.0,
+    )
+
+    # Broadcast from source to sink and intermediate
+    assert embedding.take_action(esource, esink, 0)
+    power_at_sink = embedding.power_at_node(esink.node, 0)
+    assert embedding.take_action(esource, einterm, 0)
+
+    # Make sure the broadcasting isn't counted twice
+    assert embedding.power_at_node(esink.node, 0) == power_at_sink
