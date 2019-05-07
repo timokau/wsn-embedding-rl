@@ -360,3 +360,49 @@ def test_all_viable_options_offered():
     # could also connect to any other node as a relay (4) -> 6
     # All of this could happen at either timeslot (*2)
     assert len(embedding.possibilities()) == (6 + 6) * 2
+
+def test_completion_detection():
+    """
+    Tests that the completeness of an embedding is accurately detected
+    in a simple example.
+    """
+    infra = InfrastructureNetwork()
+
+    # One source, one sink, one relay.
+    # Enough transmit power so that it doesn't need to be taken into account
+    nsource = infra.add_source(
+        pos=(0, 0),
+        # transmit power should not block anything in this example
+        transmit_power_dbm=100,
+    )
+    _nrelay = infra.add_intermediate(
+        pos=(0, 1),
+        transmit_power_dbm=100,
+    )
+    nsink = infra.set_sink(
+        pos=(1, 1),
+        transmit_power_dbm=100,
+    )
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(overlay.add_source(), nsource)
+    esink = ENode(overlay.set_sink(), nsink)
+
+    overlay.add_link(esource.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[
+            (esource.block, esource.node),
+        ],
+        timeslots=1,
+        sinrth=2.0,
+    )
+
+    assert not embedding.is_complete()
+
+    embedding.take_action(esource, esink, 0)
+
+    assert embedding.is_complete()

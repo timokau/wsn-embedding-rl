@@ -433,6 +433,35 @@ class PartialEmbedding():
         self.readjust()
         return True
 
+    def chosen_subgraph(self):
+        """
+        Returns a subgraph containing only the already chosen components
+        """
+        edges = self.graph.edges(keys=True, data=True)
+        chosen_edges = {(u, v, k) for (u, v, k, d) in edges if d['chosen']}
+        return self.graph.edge_subgraph(chosen_edges)
+
+    def _link_in_subgraph(self, subgraph, source_block, target_block):
+        for esource in self._by_block[source_block]:
+            if esource not in subgraph:
+                continue
+            for etarget in self._by_block[target_block]:
+                if etarget not in subgraph:
+                    continue
+                if nx.has_path(subgraph, esource, etarget):
+                    return True
+        return False
+
+    def is_complete(self):
+        """Determines if all blocks and links are embedded"""
+        subgraph = self.chosen_subgraph()
+
+        # check that each link is embedded
+        for (bsource, btarget) in self.overlay.links():
+            if not self._link_in_subgraph(subgraph, bsource, btarget):
+                return False
+        return True
+
 def draw_embedding(
         embedding: PartialEmbedding,
         sources_color='red',
