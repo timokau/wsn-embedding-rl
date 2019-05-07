@@ -4,14 +4,14 @@ Some helper function for dealing with wireless signal transmission.
 
 from math import inf, log, sqrt
 
-def add_dbm(
+def subtract_dbm(
         dbm1: float,
         dbm2: float,
 ):
     """Adds two decibel values"""
     watt1 = dbm_to_watt(dbm1)
     watt2 = dbm_to_watt(dbm2)
-    return watt_to_dbm(watt1 + watt2)
+    return watt_to_dbm(watt1 - watt2)
 
 def dbm_to_watt(dbm: float):
     """
@@ -123,7 +123,6 @@ def sinr(
     """
     # We need to convert to watts for addition (log scale can only multiply)
     received_noise_watt = dbm_to_watt(received_interference_dbm) \
-            - dbm_to_watt(received_signal_dbm) \
             + dbm_to_watt(noise_floor_dbm)
     received_noise_dbm = watt_to_dbm(received_noise_watt)
 

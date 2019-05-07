@@ -338,7 +338,7 @@ class PartialEmbedding():
             timeslot: int,
             additional_senders: Iterable[str] = (),
             # https://www.quora.com/How-high-is-the-ambient-RF-noise-floor-in-the-2-4-GHz-spectrum-in-downtown-San-Francisco
-            noise_floor_dbm: float = -80
+            noise_floor_dbm: float = -80,
     ):
         """
         SINR assuming only already chosen edges and the currently
@@ -348,10 +348,20 @@ class PartialEmbedding():
             source_node,
             target_node,
         )
-        received_interference_dbm = self.power_at_node(
+
+        # make sure source node is already counted (which it will be
+        # in the case of broadcast anyway), subtract it later
+        additional_senders = set(additional_senders)
+        additional_senders.add(source_node)
+
+        received_power_dbm = self.power_at_node(
             target_node,
             timeslot,
             additional_senders=additional_senders,
+        )
+        received_interference_dbm = wsignal.subtract_dbm(
+            received_power_dbm,
+            received_signal_dbm,
         )
 
         return wsignal.sinr(

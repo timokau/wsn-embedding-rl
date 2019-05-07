@@ -495,9 +495,21 @@ def test_broadcast_possible():
     )
 
     # Broadcast from source to sink and intermediate
+    sinr_before = embedding.known_sinr(
+        esource.node,
+        esink.node,
+        timeslot=0,
+    )
     assert embedding.take_action(esource, esink, 0)
     power_at_sink = embedding.power_at_node(esink.node, 0)
     assert embedding.take_action(esource, einterm, 0)
 
     # Make sure the broadcasting isn't counted twice
     assert embedding.power_at_node(esink.node, 0) == power_at_sink
+
+    # Make sure the broadcasts do not interfere with each other
+    assert sinr_before == embedding.known_sinr(
+        esource.node,
+        esink.node,
+        timeslot=0,
+    )
