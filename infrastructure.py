@@ -1,8 +1,12 @@
+"""Modelling the physical network"""
+
+from enum import Enum
 import networkx as nx
 import numpy as np
-from enum import Enum
+import wsignal
 
 class NodeKind(Enum):
+    """Types of infrastructure nodes"""
     source = 1
     sink = 2
     intermediate = 3
@@ -19,40 +23,64 @@ class InfrastructureNetwork():
         self.sources = set()
         self.intermediates = set()
 
+    def nodes(self):
+        """Returns all infrastructure nodes"""
+        return self.graph.nodes()
+
     def add_intermediate(
             self,
             pos: (float, float),
+            transmit_power_dbm: float,
             name: str = None,
-            *kwds,
     ):
         """Adds an intermediate node to the infrastructure graph"""
-        node = self._add_node(pos, name, kind=NodeKind.intermediate)
+        node = self._add_node(
+            pos,
+            transmit_power_dbm,
+            NodeKind.intermediate,
+            name,
+        )
         self.intermediates.add(node)
+        return node
 
     def add_source(
             self,
             pos: (float, float),
+            transmit_power_dbm: float,
             name: str = None,
     ):
         """Adds a source node to the infrastructure graph"""
-        node = self._add_node(pos, name, kind=NodeKind.source)
+        node = self._add_node(
+            pos,
+            transmit_power_dbm,
+            NodeKind.source,
+            name,
+        )
         self.sources.add(node)
+        return node
 
     def set_sink(
             self,
             pos: (float, float),
+            transmit_power_dbm: float,
             name=None,
-            *kwds,
     ):
         """Sets the node to the infrastructure graph"""
-        node = self._add_node(pos, name, kind=NodeKind.sink)
+        node = self._add_node(
+            pos,
+            transmit_power_dbm,
+            NodeKind.sink,
+            name,
+        )
         self.sink = node
+        return node
 
     def _add_node(
-        self,
-        pos: (float, float),
-        name: str,
-        kind: NodeKind,
+            self,
+            pos: (float, float),
+            transmit_power_dbm: float,
+            kind: NodeKind,
+            name: str = None,
     ):
         if name is None:
             name = self._generate_name()
@@ -61,8 +89,19 @@ class InfrastructureNetwork():
             name,
             kind=kind,
             pos=pos,
+            transmit_power_dbm=transmit_power_dbm,
         )
         return name
+
+    def power_received_dbm(self, source, target):
+        """Power received at sink if source sends at full power"""
+        source_node = self.graph.nodes[source]
+        target_node = self.graph.nodes[target]
+        src_x, src_y = source_node['pos']
+        trg_x, trg_y = target_node['pos']
+        distance = wsignal.distance(src_x, src_y, trg_x, trg_y)
+        transmit_power_dbm = source_node['transmit_power_dbm']
+        return wsignal.power_received(distance, transmit_power_dbm)
 
     def _generate_name(self):
         self._last_id += 1
@@ -73,6 +112,8 @@ def random_infrastructure(
         min_nodes=2,
         max_nodes=10,
         num_sources=1,
+        width=10,
+        height=10,
 ):
     """
     Generates a randomized infrastructure with uniformly distributed
@@ -80,29 +121,48 @@ def random_infrastructure(
     """
     assert num_sources < min_nodes
 
+    def rand_power():
+        # FCC limit for a wifi router is 36dBm
+        mean_transmit_power_dbm = 20
+        return rand.normal(mean_transmit_power_dbm, 10)
+
     # select a node count uniformly distributed over the given interval
-    num_nodes = rand.randint(min_nodes, max_nodes)
+    num_nodes = rand.randint(min_nodes, max_nodes+1)
 
     # place nodes uniformly at random
     node_positions = rand.uniform(
-        size=(num_nodes, 2)
+        low=(0, 0),
+        high=(width, height),
+        size=(num_nodes, 2),
     )
 
     infra = InfrastructureNetwork()
 
-    infra.set_sink(pos=node_positions[0])
+    infra.set_sink(
+        pos=node_positions[0],
+        transmit_power_dbm=rand_power(),
+    )
 
     for source_pos in node_positions[1:num_sources+1]:
-        infra.add_source(pos=source_pos)
+        infra.add_source(
+            pos=source_pos,
+            transmit_power_dbm=rand_power(),
+        )
 
     for node_pos in node_positions[num_sources+2:]:
-        infra.add_intermediate(pos=node_pos)
+        infra.add_intermediate(
+            pos=node_pos,
+            transmit_power_dbm=rand_power(),
+        )
 
     return infra
 
 
 def draw_infra(
-        infra: InfrastructureNetwork
+        infra: InfrastructureNetwork,
+        sources_color='red',
+        sink_color='yellow',
+        intermediates_color='green',
 ):
     """Draws a given InfrastructureNetwork"""
     shared_args = {
@@ -112,17 +172,17 @@ def draw_infra(
     }
     nx.draw_networkx_nodes(
         nodelist=list(infra.sources),
-        node_color='r',
+        node_color=sources_color,
         **shared_args,
     )
     nx.draw_networkx_nodes(
         nodelist=list(infra.intermediates),
-        node_color='g',
+        node_color=intermediates_color,
         **shared_args,
     )
     nx.draw_networkx_nodes(
         nodelist=[infra.sink],
-        node_color='y',
+        node_color=sink_color,
         **shared_args,
     )
     nx.draw_networkx_labels(
