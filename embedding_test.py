@@ -513,3 +513,217 @@ def test_broadcast_possible():
         esink.node,
         timeslot=0,
     )
+
+def test_count_timeslots_multiple_sources():
+    """Tests correct counting behaviour with multiple sources"""
+    infra = InfrastructureNetwork()
+
+    nsource1 = infra.add_source(
+        pos=(0, -1),
+        transmit_power_dbm=30,
+    )
+    nsource2 = infra.add_source(
+        pos=(0, 1),
+        transmit_power_dbm=30,
+    )
+    nsink = infra.set_sink(
+        pos=(1, 0),
+        transmit_power_dbm=30,
+    )
+
+    overlay = OverlayNetwork()
+
+    esource1 = ENode(overlay.add_source(), nsource1)
+    esource2 = ENode(overlay.add_source(), nsource2)
+    esink = ENode(overlay.set_sink(), nsink)
+
+    overlay.add_link(esource1.block, esink.block)
+    overlay.add_link(esource2.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[
+            (esource1.block, esource1.node),
+            (esource2.block, esource2.node),
+        ],
+        timeslots=3,
+        sinrth=2.0,
+    )
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 0
+
+    assert embedding.take_action(esource1, esink, 0)
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 1
+
+    assert embedding.take_action(esource2, esink, 1)
+
+    assert embedding.is_complete()
+    assert embedding.count_timeslots() == 2
+
+def test_count_timeslots_parallel():
+    """Tests correct counting behaviour with parallel connections"""
+    infra = InfrastructureNetwork()
+
+    # One source, one sink, two intermediates
+    nsource = infra.add_source(
+        pos=(0, 0),
+        transmit_power_dbm=30,
+        name='nsource',
+    )
+    ninterm1 = infra.add_intermediate(
+        pos=(1, 2),
+        transmit_power_dbm=30,
+        name='ninterm1',
+    )
+    ninterm2 = infra.add_intermediate(
+        pos=(1, -2),
+        transmit_power_dbm=30,
+        name='ninterm2',
+    )
+    nsink = infra.set_sink(
+        pos=(2, 0),
+        transmit_power_dbm=30,
+        name='nsink',
+    )
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(
+        overlay.add_source(name='bsource'),
+        nsource,
+    )
+    einterm1 = ENode(
+        overlay.add_intermediate(name='binterm1'),
+        ninterm1,
+    )
+    einterm2 = ENode(
+        overlay.add_intermediate(name='binterm2'),
+        ninterm2,
+    )
+    esink = ENode(
+        overlay.set_sink(name='bsink'),
+        nsink,
+    )
+
+    # fork
+    overlay.add_link(esource.block, einterm1.block)
+    overlay.add_link(esource.block, einterm2.block)
+
+    overlay.add_link(einterm1.block, esink.block)
+    overlay.add_link(einterm2.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[
+            (esource.block, esource.node),
+        ],
+        timeslots=3,
+        sinrth=2.0,
+    )
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 0
+
+    assert embedding.take_action(esource, einterm1, 0)
+    assert embedding.take_action(esource, einterm2, 0)
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 1
+
+    assert embedding.take_action(einterm1, esink, 1)
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 2
+
+    assert embedding.take_action(einterm2, esink, 2)
+
+    assert embedding.is_complete()
+    assert embedding.count_timeslots() == 3
+
+def test_count_timeslots_loop():
+    """Tests reasonable counting behaviour with loops"""
+    infra = InfrastructureNetwork()
+
+    # One source, one sink, two intermediates
+    nsource = infra.add_source(
+        pos=(0, 0),
+        transmit_power_dbm=30,
+        name='nso',
+    )
+    ninterm1 = infra.add_intermediate(
+        pos=(2, 1),
+        transmit_power_dbm=5,
+        name='ni1',
+    )
+    ninterm2 = infra.add_intermediate(
+        pos=(0, -1),
+        transmit_power_dbm=5,
+        name='ni2',
+    )
+    nsink = infra.set_sink(
+        pos=(2, 0),
+        transmit_power_dbm=30,
+        name='nsi',
+    )
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(
+        overlay.add_source(name='bso'),
+        nsource,
+    )
+    einterm1 = ENode(
+        overlay.add_intermediate(name='bi1'),
+        ninterm1,
+    )
+    einterm2 = ENode(
+        overlay.add_intermediate(name='bi2'),
+        ninterm2,
+    )
+    esink = ENode(
+        overlay.set_sink(name='bsi'),
+        nsink
+    )
+
+    overlay.add_link(esource.block, einterm1.block)
+    overlay.add_link(einterm1.block, esink.block)
+    overlay.add_link(esink.block, einterm2.block)
+    overlay.add_link(einterm2.block, esource.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[
+            (esource.block, esource.node),
+        ],
+        timeslots=3,
+        sinrth=2.0,
+    )
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 0
+
+    assert embedding.take_action(esource, einterm1, 0)
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 1
+
+    assert embedding.take_action(einterm1, esink, 1)
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 2
+
+    assert embedding.take_action(esink, einterm2, 2)
+
+    assert not embedding.is_complete()
+    assert embedding.count_timeslots() == 3
+
+    assert embedding.take_action(einterm2, esource, 1)
+
+    assert embedding.is_complete()
+    assert embedding.count_timeslots() == 5
