@@ -441,7 +441,12 @@ class PartialEmbedding():
         connections_from = \
             target_block if target_block is not None else source.block
 
-        self.wire_up_outgoing(new_enode, connections_from)
+        # determine if we're actually just updating an existing node
+        # (normal case) or really creating a new node (a link-specific
+        # copy of a relay)
+        actually_new = new_enode.relay
+        if actually_new:
+            self.wire_up_outgoing(new_enode, connections_from)
 
         self.readjust()
         return True
