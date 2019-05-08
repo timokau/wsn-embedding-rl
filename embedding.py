@@ -3,6 +3,7 @@
 from typing import List, Tuple, Iterable
 
 import networkx as nx
+from matplotlib import pyplot as plt
 
 import wsignal
 from infrastructure import InfrastructureNetwork
@@ -681,4 +682,15 @@ def draw_embedding(
         **shared_args,
         edgelist=chosen_edges,
         edge_labels=labels,
+    )
+
+    timeslots = embedding.count_timeslots()
+    plt.gca().text(
+        -1, -1,
+        f'{timeslots} timeslots',
+        bbox=dict(
+            boxstyle='round',
+            facecolor='wheat',
+            alpha=0.5,
+        ),
     )
