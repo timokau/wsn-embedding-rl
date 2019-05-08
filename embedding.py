@@ -25,7 +25,7 @@ class ENode():
     def __repr__(self):
         result = ''
         if not self.relay:
-            result += str(self.block)
+            result += str(self.block) + '-'
         result += str(self.node)
         return result
 
