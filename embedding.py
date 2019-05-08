@@ -249,11 +249,12 @@ class PartialEmbedding():
                 keys=True,
                 data=True,
         )):
-            if data['chosen']:
-                raise Exception() # This is a bug
             if neighbor == sink and data['timeslot'] == timeslot:
+                if data['chosen']:
+                    raise Exception('Removing chosen link')
                 self.graph.remove_edge(source, sink, key)
                 return
+        raise Exception('Link to remove not found')
 
     def _remove_infeasible_links(self):
         for (source, target, timeslot) in self.possibilities():
