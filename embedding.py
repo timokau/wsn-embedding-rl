@@ -35,13 +35,15 @@ class ENode():
 
         return self.block == other.block \
                 and self.node == other.node \
-                and self.predecessor == other.predecessor
+                and (not self.relay or self.predecessor == other.predecessor)
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __hash__(self):
-        return hash((self.block, self.node, self.predecessor))
+        if self.relay:
+            return hash((self.block, self.node, self.predecessor))
+        return hash((self.block, self.node))
 
 class PartialEmbedding():
     """A graph representing a partial embedding and possible actions"""
