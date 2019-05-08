@@ -167,6 +167,7 @@ class PartialEmbedding():
                 sink,
                 chosen=chosen,
                 timeslot=timeslot,
+                key=timeslot,
             )
 
     def remove_edges_from(
@@ -434,6 +435,7 @@ class PartialEmbedding():
             new_enode,
             chosen=True,
             timeslot=timeslot,
+            key=timeslot,
         )
 
         connections_from = \
