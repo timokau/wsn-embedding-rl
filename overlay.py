@@ -1,6 +1,7 @@
 """Modelling the overlay network"""
 
 from enum import Enum
+from matplotlib import pyplot as plt
 import networkx as nx
 import numpy as np
 
@@ -196,7 +197,10 @@ def draw_overlay(
         **shared_args,
     )
 
+    # positions are arbitrary for an overlay
+    plt.gca().get_xaxis().set_visible(False)
+    plt.gca().get_yaxis().set_visible(False)
+
 if __name__ == "__main__":
     draw_overlay(random_overlay(np.random))
-    from matplotlib import pyplot as plt
     plt.show()

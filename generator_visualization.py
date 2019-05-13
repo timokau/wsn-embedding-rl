@@ -1,15 +1,16 @@
 """Some visual testing"""
 
+import re
 from math import floor
 
 import numpy as np
 import matplotlib.patches as mpatches
 from matplotlib import pyplot as plt
-from matplotlib.widgets import Button
+from matplotlib.widgets import Button, TextBox
 
 from infrastructure import random_infrastructure, draw_infra
 from overlay import random_overlay, draw_overlay
-from embedding import PartialEmbedding, draw_embedding
+from embedding import ENode, PartialEmbedding, draw_embedding
 
 def random_embedding(
         max_embedding_nodes=32,
@@ -43,6 +44,11 @@ def random_embedding(
     )
     return embedding
 
+def _parse_embedding_str(embedding_str):
+    if '-' not in embedding_str:
+        return ENode(None, embedding_str)
+    return ENode(*embedding_str.split('-'))
+
 COLORS = {
     'sources_color': 'red',
     'sink_color': 'yellow',
@@ -57,14 +63,34 @@ class Visualization():
     ):
         self.embedding = embedding
 
-        self.infra_ax = plt.subplot2grid((2, 3), (0, 0))
-        self.overlay_ax = plt.subplot2grid((2, 3), (1, 0))
+        shape = (2, 3)
+        self.infra_ax = plt.subplot2grid(
+            shape=shape,
+            loc=(0, 0),
+        )
+        self.overlay_ax = plt.subplot2grid(
+            shape=shape,
+            loc=(1, 0),
+        )
         self.embedding_ax = plt.subplot2grid(
-            shape=(2, 3),
+            shape=shape,
             loc=(0, 1),
             rowspan=2,
             colspan=2,
         )
+        plt.subplots_adjust(bottom=0.2)
+        input_text_ax = plt.axes([
+            0.1, # left
+            0.05, # bottom
+            0.6, # width
+            0.075 # height
+        ])
+        input_btn_ax = plt.axes([
+            0.7, # left
+            0.05, # bottom
+            0.2, # width
+            0.075 # height
+        ])
 
         self.update_infra()
         self.update_overlay()
@@ -76,6 +102,56 @@ class Visualization():
             pa(color=COLORS['sink_color'], label='sink'),
             pa(color=COLORS['intermediates_color'], label='intermediate'),
         ])
+
+
+        random = get_random_action(self.embedding)
+        self.text_box_val = str(random)
+        self.text_box = TextBox(
+            input_text_ax,
+            'Action',
+            initial=self.text_box_val,
+        )
+
+
+        def _update_textbox_val(new_val):
+            self.text_box_val = new_val
+        self.text_box.on_text_change(_update_textbox_val)
+
+        self.submit_btn = Button(input_btn_ax, "Take action")
+
+        def _on_clicked(_):
+            self._take_action(self._parse_textbox())
+        self.submit_btn.on_clicked(_on_clicked)
+
+    def _parse_textbox(self):
+        action = self.text_box_val
+        pattern = r'\(([^,]+), ([^,]+), ([^,]+)\)'
+        match = re.match(pattern, action)
+        if match is None:
+            print('Action could not be parsed')
+            return None
+        source_embedding = _parse_embedding_str(match.group(1))
+        target_embedding = _parse_embedding_str(match.group(2))
+        timeslot = int(match.group(3))
+        return (source_embedding, target_embedding, timeslot)
+
+    def _update_textbox(self):
+        next_random = get_random_action(self.embedding)
+        self.text_box.set_val(
+            str(next_random) if next_random is not None else ''
+        )
+
+    def _take_action(self, action):
+        print('Taking action')
+        print(action)
+        success = self.embedding.take_action(*action)
+        if not success:
+            print('Action is not valid. The possibilities are:')
+            # for possibility in self.embedding.possibilities():
+            #     print(possibility)
+        self.update_embedding()
+        self._update_textbox()
+        plt.draw()
 
     def update_infra(self):
         """Redraws the infrastructure"""
@@ -99,7 +175,7 @@ class Visualization():
         draw_embedding(self.embedding, **COLORS)
 
 
-def random_action(
+def get_random_action(
         embedding: PartialEmbedding,
         rand=np.random,
 ):
@@ -107,25 +183,14 @@ def random_action(
     possibilities = embedding.possibilities()
     if len(possibilities) == 0:
         print('No action possible')
-        return
+        return None
     choice = rand.randint(0, len(possibilities))
     action = possibilities[choice]
-    print(f'Action is {action}')
-    embedding.take_action(*action)
+    return action
 
 def _main():
     embedding = random_embedding()
-    viz = Visualization(embedding)
-    ax = plt.gca()
-
-    def step(_):
-        random_action(embedding)
-        viz.update_embedding()
-        plt.draw()
-
-    btn = Button(ax, "Action")
-    btn.on_clicked(step)
-
+    Visualization(embedding)
     plt.show()
 
 if __name__ == "__main__":
