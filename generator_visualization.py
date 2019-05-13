@@ -43,18 +43,18 @@ def random_embedding(
     )
     return embedding
 
+COLORS = {
+    'sources_color': 'red',
+    'sink_color': 'yellow',
+    'intermediates_color': 'green',
+}
+
 class Visualization():
     """Visualize embedding with its infrastructure and overlay"""
     def __init__(
             self,
             embedding: PartialEmbedding,
     ):
-        self.colors = {
-            'sources_color': 'red',
-            'sink_color': 'yellow',
-            'intermediates_color': 'green',
-        }
-
         self.embedding = embedding
 
         self.infra_ax = plt.subplot2grid((2, 3), (0, 0))
@@ -72,9 +72,9 @@ class Visualization():
 
         pa = mpatches.Patch
         plt.gcf().legend(handles=[
-            pa(color=self.colors['sources_color'], label='source'),
-            pa(color=self.colors['sink_color'], label='sink'),
-            pa(color=self.colors['intermediates_color'], label='intermediate'),
+            pa(color=COLORS['sources_color'], label='source'),
+            pa(color=COLORS['sink_color'], label='sink'),
+            pa(color=COLORS['intermediates_color'], label='intermediate'),
         ])
 
     def update_infra(self):
@@ -82,21 +82,21 @@ class Visualization():
         plt.sca(self.infra_ax)
         plt.cla()
         self.infra_ax.set_title("Infrastructure")
-        draw_infra(self.embedding.infra, **self.colors)
+        draw_infra(self.embedding.infra, **COLORS)
 
     def update_overlay(self):
         """Redraws the overlay"""
         plt.sca(self.overlay_ax)
         plt.cla()
         self.overlay_ax.set_title("Overlay")
-        draw_overlay(self.embedding.overlay, **self.colors)
+        draw_overlay(self.embedding.overlay, **COLORS)
 
     def update_embedding(self):
         """Redraws the embedding"""
         plt.sca(self.embedding_ax)
         plt.cla()
         self.embedding_ax.set_title("Embedding")
-        draw_embedding(self.embedding, **self.colors)
+        draw_embedding(self.embedding, **COLORS)
 
 
 def random_action(
