@@ -46,51 +46,6 @@ class ENode():
             return hash((self.block, self.node, self.predecessor))
         return hash((self.block, self.node))
 
-class TimeSlot():
-    """Representing a particular timeslot of a timestep"""
-    def __init__(
-            self,
-            timeslots,
-            step=0,
-            slot=0,
-    ):
-        self.timeslots = timeslots
-        self.step = step
-        self.slot = slot
-
-    def sum(self):
-        """Sums up the number of timesteps needed across all timeslots"""
-        return self.step * self.timeslots + self.slot
-
-    def with_slot(self, slot):
-        """Returns a copy of this TimeSlot with the slot set to slot"""
-        return TimeSlot(self.timeslots, self.step, slot)
-
-    def __add__(self, other):
-        if isinstance(other, TimeSlot):
-            other_step = other.step
-            other_slot = other.slot
-        else:
-            # can also add tuples or other iterables
-            other_step = other[0]
-            other_slot = other[1]
-
-        new_step = self.step + other_step
-        new_slot = self.slot + other_slot
-        new_step += new_slot // self.timeslots
-        new_slot %= self.timeslots
-        return TimeSlot(self.timeslots, new_step, new_slot)
-
-    def __repr__(self):
-        return f'{self.step}.{self.slot}'
-
-    def __ge__(self, other):
-        return self.step > other.step or \
-                (self.step == other.step and self.slot >= other.slot)
-
-    def __lt__(self, other):
-        return not self.__ge__(other)
-
 class PartialEmbedding():
     """A graph representing a partial embedding and possible actions"""
     def __init__(
@@ -527,74 +482,18 @@ class PartialEmbedding():
                 return False
         return True
 
-    def _compute_times_starting_from(
-            self,
-            subgraph,
-            start_node: str,
-            start_time: TimeSlot,
-    ):
-        """Returns a list of data_ready times starting from start_node"""
-        # DFS visit marker
-        self.graph.nodes[start_node]['visited'] = True
-
-        # all recorded times at which some signal is processed at some
-        # node
-        times = set()
-        for (_, neighbor, data) in subgraph.out_edges(
-                nbunch=[start_node],
-                data=True,
-        ):
-            # time at which the data is sent to the next node
-            timeslot_send = data['timeslot']
-
-            # the time at which the next node has received the signal
-            # and is ready to pass it on
-            new_time = start_time
-            if timeslot_send < start_time.slot:
-                # do we have to wait for the next timestep?
-                new_time += (1, 0)
-            new_time = new_time.with_slot(timeslot_send) + (0, 1)
-            times.add(new_time)
-
-            # We ignore loops. It is assumed that the input from a loop
-            # is received in the last timestep.
-            if not self.graph.nodes[neighbor].get('visited', False):
-                # recurse
-                times = times.union(self._compute_times_starting_from(
-                    subgraph,
-                    neighbor,
-                    new_time,
-                ))
-        self.graph.nodes[start_node]['visited'] = False
-        return times
-
-    def count_timeslots(self):
+    def timeslots_used(self):
         """
         Counts the number of timeslots needed for all embedded links
         """
+        max_timeslot = -1
+        for (_, _, timeslot, data) in self.graph.edges(keys=True, data=True):
+            if data['chosen'] and timeslot > max_timeslot:
+                max_timeslot = timeslot
 
-        # start at sink, determine earliest latest incoming timestamp,
-        # reapply recursively with caching
-        subgraph = self.chosen_subgraph()
-
-        timeslots = set()
-        for bsource in self.overlay.sources:
-            # sources are always embedded, so there is only one
-            # candidate
-            esource = list(self._by_block[bsource])[0]
-            end_timeslot = self._compute_times_starting_from(
-                subgraph,
-                esource,
-                TimeSlot(self.timeslots, 0, 0),
-            )
-            timeslots = timeslots.union(end_timeslot)
-
-        # What is the highest timeslot seen when traversing the graph?
-        # If there are no timeslots (i.e. no chosen edges), we needed 0
-        # timeslots.
-        if len(timeslots) == 0:
-            return 0
-        return max(timeslots).sum()
+        # the first timeslot is 0, this returns the *amount* of
+        # timeslots
+        return max_timeslot + 1
 
 
 def draw_embedding(
@@ -684,7 +583,7 @@ def draw_embedding(
         edge_labels=labels,
     )
 
-    timeslots = embedding.count_timeslots()
+    timeslots = embedding.timeslots_used()
     plt.gca().text(
         -1, -1,
         f'{timeslots} timeslots',

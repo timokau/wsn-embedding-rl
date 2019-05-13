@@ -552,17 +552,17 @@ def test_count_timeslots_multiple_sources():
     )
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 0
+    assert embedding.timeslots_used() == 0
 
     assert embedding.take_action(esource1, esink, 0)
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 1
+    assert embedding.timeslots_used() == 1
 
     assert embedding.take_action(esource2, esink, 1)
 
     assert embedding.is_complete()
-    assert embedding.count_timeslots() == 2
+    assert embedding.timeslots_used() == 2
 
 def test_count_timeslots_parallel():
     """Tests correct counting behaviour with parallel connections"""
@@ -627,23 +627,23 @@ def test_count_timeslots_parallel():
     )
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 0
+    assert embedding.timeslots_used() == 0
 
     assert embedding.take_action(esource, einterm1, 0)
     assert embedding.take_action(esource, einterm2, 0)
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 1
+    assert embedding.timeslots_used() == 1
 
     assert embedding.take_action(einterm1, esink, 1)
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 2
+    assert embedding.timeslots_used() == 2
 
     assert embedding.take_action(einterm2, esink, 2)
 
     assert embedding.is_complete()
-    assert embedding.count_timeslots() == 3
+    assert embedding.timeslots_used() == 3
 
 def test_count_timeslots_loop():
     """Tests reasonable counting behaviour with loops"""
@@ -706,24 +706,24 @@ def test_count_timeslots_loop():
     )
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 0
+    assert embedding.timeslots_used() == 0
 
     assert embedding.take_action(esource, einterm1, 0)
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 1
+    assert embedding.timeslots_used() == 1
 
     assert embedding.take_action(einterm1, esink, 1)
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 2
+    assert embedding.timeslots_used() == 2
 
     assert embedding.take_action(esink, einterm2, 2)
 
     assert not embedding.is_complete()
-    assert embedding.count_timeslots() == 3
+    assert embedding.timeslots_used() == 3
 
     assert embedding.take_action(einterm2, esource, 1)
 
     assert embedding.is_complete()
-    assert embedding.count_timeslots() == 5
+    assert embedding.timeslots_used() == 3
