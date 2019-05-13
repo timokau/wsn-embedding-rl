@@ -44,7 +44,6 @@ def test_path_loss():
         infra,
         overlay,
         source_mapping=[(source_block, source_node)],
-        timeslots=1,
         sinrth=2.0,
     )
     assert len(embedding.possibilities()) == 0
@@ -79,7 +78,6 @@ def test_trivial_possibilities():
         infra,
         overlay,
         source_mapping=[(source_block, source_node)],
-        timeslots=1,
         sinrth=2.0,
     )
     # either go to N2 as a relay (doesn't make sense but is a viable
@@ -117,7 +115,6 @@ def test_manually_verified_sinr():
     embedding = PartialEmbedding(
         infra,
         overlay,
-        timeslots=3,
         source_mapping=[(b_source1, n_source1), (b_source2, n_source2)],
     )
 
@@ -222,9 +219,12 @@ def test_invalidating_earlier_choice_impossible():
             (esource_silent.block, esource_silent.node),
             (esource_screamer.block, esource_screamer.node),
         ],
-        timeslots=1,
         sinrth=2.0,
     )
+
+    action_to_be_invalidated = (esource_screamer, esink, 0)
+    # make sure the action is an option in the first place
+    assert action_to_be_invalidated in embedding.possibilities()
 
     # embed the link from the silent node to the sink
     embedding.take_action(esource_silent, esink, 0)
@@ -233,10 +233,16 @@ def test_invalidating_earlier_choice_impossible():
     screamer_sinr = embedding.known_sinr(source_node_screamer, node_sink, 0)
     assert screamer_sinr > embedding.sinrth
 
+    new_possibilities = embedding.possibilities()
     # but since the action would make the first embedding invalid (a
     # node cannot receive two signals at the same time), it should still
-    # not be possible. That means there are no remaining possibilities.
-    assert len(embedding.possibilities()) == 0
+    # not be possible
+    assert action_to_be_invalidated not in new_possibilities
+
+    # since there are no options left in the first timeslot, there are
+    # now exactly 3 (screamer -> any other node as relay, screamer ->
+    # sink embedded) options left in the newly created second timeslot
+    assert len(new_possibilities) == 3
 
 def test_no_unnecessary_options():
     """
@@ -274,15 +280,13 @@ def test_no_unnecessary_options():
         source_mapping=[
             (esource.block, esource.node),
         ],
-        timeslots=2,
         sinrth=2.0,
     )
 
     # Currently, it would be possible to either embed the sink and
     # directly link to it, or to use the sink as a relay (although that
-    # wouldn't make much sense). Each of those options could be taken at
-    # either timeslot.
-    assert len(embedding.possibilities()) == 4
+    # wouldn't make much sense).
+    assert len(embedding.possibilities()) == 2
 
     # embed the sink
     embedding.take_action(esource, esink, 0)
@@ -349,7 +353,6 @@ def test_all_viable_options_offered():
             (esource1.block, esource1.node),
             (esource2.block, esource2.node),
         ],
-        timeslots=2,
         sinrth=2.0,
     )
 
@@ -358,8 +361,66 @@ def test_all_viable_options_offered():
     # node as a relay (4) -> 6
     # source2 can connect to the sink (1) or the other source (1). It
     # could also connect to any other node as a relay (4) -> 6
-    # All of this could happen at either timeslot (*2)
-    assert len(embedding.possibilities()) == (6 + 6) * 2
+    # No timeslot is used yet, so there is just one timeslot option.
+    assert len(embedding.possibilities()) == 6 + 6
+
+def test_timeslots_dynamically_created():
+    """Tests the dynamic creation of new timeslots as needed"""
+    infra = InfrastructureNetwork()
+
+    nsource1 = infra.add_source(
+        pos=(0, 0),
+        # transmits so loudly that no other node can realistically
+        # transmit in the same timeslot
+        transmit_power_dbm=1000,
+    )
+    nsource2 = infra.add_source(
+        pos=(1, 0),
+        transmit_power_dbm=1000,
+    )
+    nsink = infra.set_sink(
+        pos=(1, 1),
+        transmit_power_dbm=1000,
+    )
+
+    overlay = OverlayNetwork()
+
+    esource1 = ENode(overlay.add_source(), nsource1)
+    esource2 = ENode(overlay.add_source(), nsource2)
+    esink = ENode(overlay.set_sink(), nsink)
+
+    overlay.add_link(esource1.block, esink.block)
+    overlay.add_link(esource2.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[
+            (esource1.block, esource1.node),
+            (esource2.block, esource2.node),
+        ],
+        sinrth=2.0,
+    )
+
+    # nothing used yet
+    assert embedding.used_timeslots == 0
+
+    # it would be possible to create a new timeslot and embed either
+    # link in it (2) or go to a relay from either source (2 * 2)
+    assert len(embedding.possibilities()) == 6
+
+    # Take an action. nosurce1 will transmit so strongly that nsource2
+    # cannot send at the same timelot
+    assert embedding.take_action(esource1, esink, 0)
+
+    # timeslot 0 is now used
+    assert embedding.used_timeslots == 1
+
+    # New options (for creating timeslot 1) were created accordingly.
+    # The seconds source could now still send to two different relays or
+    # to the sink directly, it will just have to do it in a new
+    # timeslot.
+    assert len(embedding.possibilities()) == 3
 
 def test_completion_detection():
     """
@@ -397,7 +458,6 @@ def test_completion_detection():
         source_mapping=[
             (esource.block, esource.node),
         ],
-        timeslots=1,
         sinrth=2.0,
     )
 
@@ -444,7 +504,6 @@ def test_parallel_receive_impossible():
             (esource1.block, esource1.node),
             (esource2.block, esource2.node),
         ],
-        timeslots=1,
         sinrth=2.0,
     )
 
@@ -490,7 +549,6 @@ def test_broadcast_possible():
         source_mapping=[
             (esource.block, esource.node),
         ],
-        timeslots=2,
         sinrth=2.0,
     )
 
@@ -547,22 +605,21 @@ def test_count_timeslots_multiple_sources():
             (esource1.block, esource1.node),
             (esource2.block, esource2.node),
         ],
-        timeslots=3,
         sinrth=2.0,
     )
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 0
+    assert embedding.used_timeslots == 0
 
     assert embedding.take_action(esource1, esink, 0)
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 1
+    assert embedding.used_timeslots == 1
 
     assert embedding.take_action(esource2, esink, 1)
 
     assert embedding.is_complete()
-    assert embedding.timeslots_used() == 2
+    assert embedding.used_timeslots == 2
 
 def test_count_timeslots_parallel():
     """Tests correct counting behaviour with parallel connections"""
@@ -622,28 +679,27 @@ def test_count_timeslots_parallel():
         source_mapping=[
             (esource.block, esource.node),
         ],
-        timeslots=3,
         sinrth=2.0,
     )
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 0
+    assert embedding.used_timeslots == 0
 
     assert embedding.take_action(esource, einterm1, 0)
     assert embedding.take_action(esource, einterm2, 0)
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 1
+    assert embedding.used_timeslots == 1
 
     assert embedding.take_action(einterm1, esink, 1)
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 2
+    assert embedding.used_timeslots == 2
 
     assert embedding.take_action(einterm2, esink, 2)
 
     assert embedding.is_complete()
-    assert embedding.timeslots_used() == 3
+    assert embedding.used_timeslots == 3
 
 def test_count_timeslots_loop():
     """Tests reasonable counting behaviour with loops"""
@@ -701,29 +757,28 @@ def test_count_timeslots_loop():
         source_mapping=[
             (esource.block, esource.node),
         ],
-        timeslots=3,
         sinrth=2.0,
     )
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 0
+    assert embedding.used_timeslots == 0
 
     assert embedding.take_action(esource, einterm1, 0)
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 1
+    assert embedding.used_timeslots == 1
 
     assert embedding.take_action(einterm1, esink, 1)
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 2
+    assert embedding.used_timeslots == 2
 
     assert embedding.take_action(esink, einterm2, 2)
 
     assert not embedding.is_complete()
-    assert embedding.timeslots_used() == 3
+    assert embedding.used_timeslots == 3
 
     assert embedding.take_action(einterm2, esource, 1)
 
     assert embedding.is_complete()
-    assert embedding.timeslots_used() == 3
+    assert embedding.used_timeslots == 3

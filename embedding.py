@@ -54,12 +54,11 @@ class PartialEmbedding():
             overlay: OverlayNetwork,
             # map block to node
             source_mapping: List[Tuple[str, str]],
-            timeslots: int = 4,
             sinrth: float = 2.0,
     ):
         self.infra = infra
         self.overlay = overlay
-        self.timeslots = timeslots
+        self.used_timeslots = -1
         self.sinrth = sinrth
 
         self.graph = nx.MultiDiGraph()
@@ -113,14 +112,14 @@ class PartialEmbedding():
             chosen=True,
         )
 
-    def _add_link_edges(self):
+    def _add_link_edges(
+            self,
+            timeslot: int,
+    ):
         for (source_block, sink_block) in self.overlay.links():
             for source_embedding in self._by_block.get(source_block, set()):
                 for sink_embedding in self._by_block.get(sink_block, set()):
-                    self.add_timeslotted_edges(
-                        source_embedding,
-                        sink_embedding,
-                    )
+                    self.add_edge(source_embedding, sink_embedding, timeslot)
 
     def _add_relay_nodes(self):
         for node in self.infra.nodes():
@@ -155,21 +154,22 @@ class PartialEmbedding():
             kind=kind,
         )
 
-    def add_timeslotted_edges(
+    def add_edge(
             self,
             source: ENode,
             sink: ENode,
-            chosen=False,
+            timeslot: int,
         ):
-        """Adds one edge for each timeslot between two nodes"""
-        for timeslot in range(0, self.timeslots):
-            self.graph.add_edge(
-                source,
-                sink,
-                chosen=chosen,
-                timeslot=timeslot,
-                key=timeslot,
-            )
+        """Adds a possible connection to the graph"""
+        self.graph.add_edge(
+            source,
+            sink,
+            # a new edge can never be chosen
+            chosen=False,
+            timeslot=timeslot,
+            # edges are uniquely identified by (source, target, timeslot)
+            key=timeslot,
+        )
 
     def remove_edges_from(
             self,
@@ -195,17 +195,14 @@ class PartialEmbedding():
             except nx.NetworkXError:
                 break
 
-    def _add_relay_edges(self):
+    def _add_relay_edges(self, timeslot):
         # relay nodes are fully connected to allow for arbitrary paths
         for source_node in self.infra.nodes():
             for sink_node in self.infra.nodes():
                 if source_node != sink_node:
                     source_embedding = ENode(None, source_node)
                     sink_embedding = ENode(None, sink_node)
-                    self.add_timeslotted_edges(
-                        source_embedding,
-                        sink_embedding,
-                    )
+                    self.add_edge(source_embedding, sink_embedding, timeslot)
 
         # incoming + outgoing relay
         for block in self.overlay.graph.nodes():
@@ -222,9 +219,9 @@ class PartialEmbedding():
                     if embedding.node == relay.node:
                         continue
                     if add_incoming:
-                        self.add_timeslotted_edges(relay, embedding)
+                        self.add_edge(relay, embedding, timeslot)
                     if add_outgoing:
-                        self.add_timeslotted_edges(embedding, relay)
+                        self.add_edge(embedding, relay, timeslot)
 
 
     def _build_possibilities_graph(
@@ -235,8 +232,8 @@ class PartialEmbedding():
         self._embed_sink()
         self._embed_sources(source_mapping)
         self._add_relay_nodes()
-        self._add_link_edges()
-        self._add_relay_edges()
+
+        self.add_timeslot()
 
     def remove_link(
             self,
@@ -379,11 +376,12 @@ class PartialEmbedding():
             self,
             enode: ENode,
             act_as_block: str,
+            timeslot: int,
     ):
         """Connect a new ENode to all its possible successors"""
         for relay in self._relays:
             if relay.node != enode.node:
-                self.add_timeslotted_edges(enode, relay)
+                self.add_edge(enode, relay, timeslot)
 
         out_edges = self.overlay.graph.out_edges(
             nbunch=[act_as_block],
@@ -391,7 +389,13 @@ class PartialEmbedding():
 
         for (_, v) in out_edges:
             for option in self._by_block.get(v, set()):
-                self.add_timeslotted_edges(enode, option)
+                self.add_edge(enode, option, timeslot)
+
+    def add_timeslot(self):
+        """Adds a new timeslot as an option"""
+        self.used_timeslots += 1
+        self._add_link_edges(self.used_timeslots)
+        self._add_relay_edges(self.used_timeslots)
 
     def take_action(
             self,
@@ -448,7 +452,10 @@ class PartialEmbedding():
         # copy of a relay)
         actually_new = new_enode.relay
         if actually_new:
-            self.wire_up_outgoing(new_enode, connections_from)
+            self.wire_up_outgoing(new_enode, connections_from, timeslot)
+
+        if timeslot >= self.used_timeslots:
+            self.add_timeslot()
 
         self.readjust()
         return True
@@ -481,19 +488,6 @@ class PartialEmbedding():
             if not self._link_in_subgraph(subgraph, bsource, btarget):
                 return False
         return True
-
-    def timeslots_used(self):
-        """
-        Counts the number of timeslots needed for all embedded links
-        """
-        max_timeslot = -1
-        for (_, _, timeslot, data) in self.graph.edges(keys=True, data=True):
-            if data['chosen'] and timeslot > max_timeslot:
-                max_timeslot = timeslot
-
-        # the first timeslot is 0, this returns the *amount* of
-        # timeslots
-        return max_timeslot + 1
 
 
 def draw_embedding(
@@ -583,7 +577,7 @@ def draw_embedding(
         edge_labels=labels,
     )
 
-    timeslots = embedding.timeslots_used()
+    timeslots = embedding.used_timeslots
     plt.gca().text(
         -1, -1,
         f'{timeslots} timeslots',
