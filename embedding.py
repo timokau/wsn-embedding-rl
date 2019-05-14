@@ -578,9 +578,11 @@ def draw_embedding(
     )
 
     timeslots = embedding.used_timeslots
+    complete = embedding.is_complete()
+    complete_str = ' (complete)' if complete else ''
     plt.gca().text(
         -1, -1,
-        f'{timeslots} timeslots',
+        f'{timeslots} timeslots{complete_str}',
         bbox=dict(
             boxstyle='round',
             facecolor='wheat',
