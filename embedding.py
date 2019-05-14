@@ -383,7 +383,6 @@ class PartialEmbedding():
     def wire_up_outgoing(
             self,
             enode: ENode,
-            act_as_block: str,
             timeslot: int,
     ):
         """Connect a new ENode to all its possible successors"""
@@ -392,7 +391,7 @@ class PartialEmbedding():
                 self.add_edge(enode, relay, timeslot)
 
         out_edges = self.overlay.graph.out_edges(
-            nbunch=[act_as_block],
+            nbunch=[enode.acting_as],
         )
 
         for (_, v) in out_edges:
@@ -452,15 +451,14 @@ class PartialEmbedding():
             key=timeslot,
         )
 
-        connections_from = \
-            target_block if target_block is not None else source.block
-
         # determine if we're actually just updating an existing node
         # (normal case) or really creating a new node (a link-specific
         # copy of a relay)
         actually_new = new_enode.relay
         if actually_new:
-            self.wire_up_outgoing(new_enode, connections_from, timeslot)
+            self._by_block[new_enode.acting_as].add(new_enode)
+            for ts in range(self.used_timeslots+1):
+                self.wire_up_outgoing(new_enode, ts)
 
         if timeslot >= self.used_timeslots:
             self.add_timeslot()

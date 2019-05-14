@@ -782,3 +782,83 @@ def test_count_timeslots_loop():
 
     assert embedding.is_complete()
     assert embedding.used_timeslots == 3
+
+def test_relays_correctly_wired_up():
+    """
+    Tests that if an connection to a relay is selected, the relay is
+    correctly copied and wired up.
+    """
+    infra = InfrastructureNetwork()
+
+    # One source, one sink, two relays
+    nsource = infra.add_source(
+        pos=(0, 0),
+        transmit_power_dbm=1,
+        name='nso',
+    )
+    nrelay1 = infra.add_intermediate(
+        pos=(10, 0),
+        transmit_power_dbm=1,
+        name='nrelay1',
+    )
+    nrelay2 = infra.add_intermediate(
+        pos=(20, 0),
+        transmit_power_dbm=1,
+        name='nrelay2',
+    )
+    nsink = infra.set_sink(
+        pos=(30, 0),
+        transmit_power_dbm=1,
+        name='nsi',
+    )
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(
+        overlay.add_source(name='bso'),
+        nsource,
+    )
+    esink = ENode(
+        overlay.set_sink(name='bsi'),
+        nsink,
+    )
+
+    overlay.add_link(esource.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[
+            (esource.block, esource.node),
+        ],
+        sinrth=2.0,
+    )
+
+    assert not embedding.is_complete()
+    assert embedding.used_timeslots == 0
+
+    assert set(embedding.possibilities()) == set([
+        (esource, esink, 0),
+        (esource, ENode(None, nsink), 0),
+        (esource, ENode(None, nrelay1), 0),
+        (esource, ENode(None, nrelay2), 0),
+    ])
+
+    assert embedding.take_action(esource, ENode(None, nrelay1), 0)
+
+    erelay1_source = ENode(None, nrelay1, predecessor=esource)
+    assert set(embedding.possibilities()) == set([
+        (erelay1_source, esink, 1),
+        (erelay1_source, ENode(None, nsource), 1),
+        (erelay1_source, ENode(None, nsink), 1),
+        (erelay1_source, ENode(None, nrelay2), 1),
+    ])
+
+    assert embedding.take_action(erelay1_source, ENode(None, nrelay2), 1)
+    erelay2_source = ENode(None, nrelay2, predecessor=erelay1_source)
+    assert set(embedding.possibilities()) == set([
+        (erelay2_source, esink, 2),
+        (erelay2_source, ENode(None, nsource), 2),
+        (erelay2_source, ENode(None, nsink), 2),
+        (erelay2_source, ENode(None, nrelay1), 2),
+    ])
