@@ -1,6 +1,5 @@
 """Some visual testing"""
 
-import re
 from math import floor
 
 import numpy as np
@@ -10,7 +9,7 @@ from matplotlib.widgets import Button, TextBox
 
 from infrastructure import random_infrastructure, draw_infra
 from overlay import random_overlay, draw_overlay
-from embedding import ENode, PartialEmbedding, draw_embedding
+from embedding import PartialEmbedding, draw_embedding
 
 def random_embedding(
         max_embedding_nodes=32,
@@ -43,11 +42,6 @@ def random_embedding(
         source_mapping,
     )
     return embedding
-
-def _parse_embedding_str(embedding_str):
-    if '-' not in embedding_str:
-        return ENode(None, embedding_str)
-    return ENode(*embedding_str.split('-'))
 
 COLORS = {
     'sources_color': 'red',
@@ -125,15 +119,11 @@ class Visualization():
 
     def _parse_textbox(self):
         action = self.text_box_val
-        pattern = r'\(([^,]+), ([^,]+), ([^,]+)\)'
-        match = re.match(pattern, action)
-        if match is None:
-            print('Action could not be parsed')
-            return None
-        source_embedding = _parse_embedding_str(match.group(1))
-        target_embedding = _parse_embedding_str(match.group(2))
-        timeslot = int(match.group(3))
-        return (source_embedding, target_embedding, timeslot)
+        possibilities = self.embedding.possibilities()
+        for possibility in possibilities:
+            if str(possibility) == action:
+                return possibility
+        return None
 
     def _update_textbox(self):
         next_random = get_random_action(self.embedding)
