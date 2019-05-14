@@ -33,6 +33,8 @@ class ENode():
         result = ''
         if not self.relay:
             result += str(self.block) + '-'
+        elif self.acting_as is not None:
+            result += f'({self.acting_as})-'
         result += str(self.node)
         return result
 
