@@ -22,6 +22,12 @@ class ENode():
         self.node = node
         self.relay = self.block is None
         self.predecessor = predecessor
+        if self.block is not None:
+            self.acting_as = block
+        elif self.predecessor is not None:
+            self.acting_as = predecessor.acting_as
+        else:
+            self.acting_as = None
 
     def __repr__(self):
         result = ''
@@ -272,7 +278,7 @@ class PartialEmbedding():
                     num_embedded_out_links += 1
 
             num_out_links_to_embed = len(self.overlay.graph.out_edges(
-                nbunch=[source.block],
+                nbunch=[source.acting_as],
             ))
             if num_out_links_to_embed <= num_embedded_out_links:
                 self.remove_link(source, target, timeslot)
