@@ -186,6 +186,9 @@ def get_random_action(
         return None
     choice = rand.randint(0, len(possibilities))
     action = possibilities[choice]
+    print(f'Picking random action {action} from')
+    for possibility in possibilities:
+        print('\t' + str(possibility))
     return action
 
 def _main():
