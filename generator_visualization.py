@@ -142,13 +142,13 @@ class Visualization():
         )
 
     def _take_action(self, action):
-        print('Taking action')
-        print(action)
+        if action is None:
+            print('Action could not be parsed')
+            return
+        print(f'Taking action: {action}')
         success = self.embedding.take_action(*action)
         if not success:
             print('Action is not valid. The possibilities are:')
-            # for possibility in self.embedding.possibilities():
-            #     print(possibility)
         self.update_embedding()
         self._update_textbox()
         plt.draw()
