@@ -263,28 +263,8 @@ class PartialEmbedding():
         """Removes a link given its source, sink and timeslot"""
         self.graph.remove_edge(source, sink, timeslot)
 
-    def _link_feasible(self, source, target, timeslot):
-        # check if link sinr is valid
-        sinr = self.known_sinr(source.node, target.node, timeslot)
-        if sinr < self.sinrth:
-            return False
-
-        # check if there are any unembedded outgoing links left
-        num_embedded_out_links = 0
-        for (_, _, data) in list(self.graph.out_edges(
-                nbunch=[source],
-                data=True,
-        )):
-            if data['chosen']:
-                num_embedded_out_links += 1
-
-        num_out_links_to_embed = len(self.overlay.graph.out_edges(
-            nbunch=[source.acting_as],
-        ))
-        if num_out_links_to_embed <= num_embedded_out_links:
-            return False
-
-        # check if link would invalidate sinr of chosen action
+    def _invalidates_chosen(self, source, timeslot):
+        """Checks if node sending would invalidate sinr of chosen action"""
         for (u, v) in self._all_known_transmissions_at(timeslot):
             new_sinr = self.known_sinr(
                 u.node,
@@ -293,8 +273,42 @@ class PartialEmbedding():
                 additional_senders={source.node},
             )
             if new_sinr < self.sinrth:
-                return False
+                return True
+        return False
 
+    def _sinr_valid(self, source, target, timeslot):
+        """Checks if link sinr is valid"""
+        sinr = self.known_sinr(source.node, target.node, timeslot)
+        return sinr >= self.sinrth
+
+    def _unembedded_outlinks_left(self, enode):
+        """Checks if there are any unembedded outgoing links left"""
+        num_embedded_out_links = 0
+        for (_, _, data) in list(self.graph.out_edges(
+                nbunch=[enode],
+                data=True,
+        )):
+            if data['chosen']:
+                num_embedded_out_links += 1
+
+        num_out_links_to_embed = len(self.overlay.graph.out_edges(
+            nbunch=[enode.acting_as],
+        ))
+        return num_out_links_to_embed > num_embedded_out_links
+
+    def _valid_by_itself(self, source, target, timeslot):
+        if not self._sinr_valid(source, target, timeslot):
+            return False
+        if not self._unembedded_outlinks_left(source):
+            return False
+        return True
+
+    def _link_feasible(self, source, target, timeslot):
+        if not self._valid_by_itself(source, target, timeslot):
+            return False
+
+        if self._invalidates_chosen(source, timeslot):
+            return False
         return True
 
     def _remove_infeasible_links(self, timeslot=None):
