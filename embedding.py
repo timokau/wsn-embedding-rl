@@ -172,7 +172,7 @@ class PartialEmbedding():
             sink: ENode,
             timeslot: int,
         ):
-        """Adds a possible connection to the graph"""
+        """Adds a possible connection to the graph if it is feasible"""
         self.graph.add_edge(
             source,
             sink,
@@ -182,6 +182,9 @@ class PartialEmbedding():
             # edges are uniquely identified by (source, target, timeslot)
             key=timeslot,
         )
+        if not self._link_feasible(source, sink, timeslot):
+            self.remove_link(source, sink, timeslot)
+
 
     def remove_edges_from(
             self,
@@ -300,14 +303,17 @@ class PartialEmbedding():
 
         return True
 
-    def _remove_infeasible_links(self):
-        for (source, target, timeslot) in self.possibilities():
-            if not self._link_feasible(source, target, timeslot):
-                self.remove_link(source, target, timeslot)
+    def _remove_infeasible_links(self, timeslot=None):
+        for (source, target, link_ts) in self.possibilities():
+            if timeslot is not None and link_ts != timeslot:
+                continue
 
-    def readjust(self):
+            if not self._link_feasible(source, target, link_ts):
+                self.remove_link(source, target, link_ts)
+
+    def readjust(self, timeslot=None):
         """Removes now infeasible actions"""
-        self._remove_infeasible_links()
+        self._remove_infeasible_links(timeslot)
 
     def _all_known_transmissions_at(self, timeslot):
         return self._transmissions_at.get(timeslot, [])
@@ -467,7 +473,7 @@ class PartialEmbedding():
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
 
-        self.readjust()
+        self.readjust(timeslot)
         return True
 
     def chosen_subgraph(self):
