@@ -266,41 +266,44 @@ class PartialEmbedding():
                 return
         raise Exception('Link to remove not found')
 
+    def _link_feasible(self, source, target, timeslot):
+        # check if link sinr is valid
+        sinr = self.known_sinr(source.node, target.node, timeslot)
+        if sinr < self.sinrth:
+            return False
+
+        # check if there are any unembedded outgoing links left
+        num_embedded_out_links = 0
+        for (_, _, data) in list(self.graph.out_edges(
+                nbunch=[source],
+                data=True,
+        )):
+            if data['chosen']:
+                num_embedded_out_links += 1
+
+        num_out_links_to_embed = len(self.overlay.graph.out_edges(
+            nbunch=[source.acting_as],
+        ))
+        if num_out_links_to_embed <= num_embedded_out_links:
+            return False
+
+        # check if link would invalidate sinr of chosen action
+        for (u, v) in self._all_known_transmissions_at(timeslot):
+            new_sinr = self.known_sinr(
+                u.node,
+                v.node,
+                timeslot=timeslot,
+                additional_senders={source.node},
+            )
+            if new_sinr < self.sinrth:
+                return False
+
+        return True
+
     def _remove_infeasible_links(self):
         for (source, target, timeslot) in self.possibilities():
-            # check if link sinr is valid
-            sinr = self.known_sinr(source.node, target.node, timeslot)
-            if sinr < self.sinrth:
+            if not self._link_feasible(source, target, timeslot):
                 self.remove_link(source, target, timeslot)
-                continue
-
-            # check if there are any unembedded outgoing links left
-            num_embedded_out_links = 0
-            for (_, _, data) in list(self.graph.out_edges(
-                    nbunch=[source],
-                    data=True,
-            )):
-                if data['chosen']:
-                    num_embedded_out_links += 1
-
-            num_out_links_to_embed = len(self.overlay.graph.out_edges(
-                nbunch=[source.acting_as],
-            ))
-            if num_out_links_to_embed <= num_embedded_out_links:
-                self.remove_link(source, target, timeslot)
-                continue
-
-            # check if link would invalidate sinr of chosen action
-            for (u, v) in self._all_known_transmissions_at(timeslot):
-                new_sinr = self.known_sinr(
-                    u.node,
-                    v.node,
-                    timeslot=timeslot,
-                    additional_senders={source.node},
-                )
-                if new_sinr < self.sinrth:
-                    self.remove_link(source, target, timeslot)
-                    break
 
     def readjust(self):
         """Removes now infeasible actions"""
