@@ -19,6 +19,7 @@ class InfrastructureNetwork():
 
         self.graph = nx.Graph()
 
+        self.power_received_cache = dict()
         self.sink = None
         self.sources = set()
         self.intermediates = set()
@@ -95,13 +96,17 @@ class InfrastructureNetwork():
 
     def power_received_dbm(self, source, target):
         """Power received at sink if source sends at full power"""
-        source_node = self.graph.nodes[source]
-        target_node = self.graph.nodes[target]
-        src_x, src_y = source_node['pos']
-        trg_x, trg_y = target_node['pos']
-        distance = wsignal.distance(src_x, src_y, trg_x, trg_y)
-        transmit_power_dbm = source_node['transmit_power_dbm']
-        return wsignal.power_received(distance, transmit_power_dbm)
+        cached = self.power_received_cache.get((source, target))
+        if cached is None:
+            source_node = self.graph.nodes[source]
+            target_node = self.graph.nodes[target]
+            src_x, src_y = source_node['pos']
+            trg_x, trg_y = target_node['pos']
+            distance = wsignal.distance(src_x, src_y, trg_x, trg_y)
+            transmit_power_dbm = source_node['transmit_power_dbm']
+            cached = wsignal.power_received(distance, transmit_power_dbm)
+            self.power_received_cache[(source, target)] = cached
+        return cached
 
     def _generate_name(self):
         self._last_id += 1
