@@ -55,6 +55,9 @@ class ENode():
         return hash((self.block, self.node))
 
 class PartialEmbedding():
+    # pylint: disable=too-many-instance-attributes
+    # Instance attributes needed for caching, I think private instance
+    # attributes are fine.
     """A graph representing a partial embedding and possible actions"""
     def __init__(
             self,
@@ -74,6 +77,7 @@ class PartialEmbedding():
         # just for ease of access
         self._relays = set()
         self._by_block = dict()
+        self._transmissions_at = dict()
 
         self._build_possibilities_graph(source_mapping)
         self.readjust()
@@ -303,14 +307,7 @@ class PartialEmbedding():
         self._remove_infeasible_links()
 
     def _all_known_transmissions_at(self, timeslot):
-        edges = self.graph.edges(
-            data=True,
-            keys=True,
-        )
-        def edge_filter(data):
-            return data['chosen'] and data['timeslot'] == timeslot
-
-        return {(u, v) for (u, v, k, d) in edges if edge_filter(d)}
+        return self._transmissions_at.get(timeslot, [])
 
     def power_at_node(
             self,
@@ -450,6 +447,10 @@ class PartialEmbedding():
             timeslot=timeslot,
             key=timeslot,
         )
+        self._transmissions_at[timeslot] = self._transmissions_at.get(
+            timeslot,
+            [],
+        ) + [(source, new_enode)]
 
         # determine if we're actually just updating an existing node
         # (normal case) or really creating a new node (a link-specific
