@@ -257,17 +257,7 @@ class PartialEmbedding():
             timeslot: int,
     ):
         """Removes a link given its source, sink and timeslot"""
-        for (_, neighbor, key, data) in list(self.graph.out_edges(
-                nbunch=[source],
-                keys=True,
-                data=True,
-        )):
-            if neighbor == sink and data['timeslot'] == timeslot:
-                if data['chosen']:
-                    raise Exception('Removing chosen link')
-                self.graph.remove_edge(source, sink, key)
-                return
-        raise Exception('Link to remove not found')
+        self.graph.remove_edge(source, sink, timeslot)
 
     def _link_feasible(self, source, target, timeslot):
         # check if link sinr is valid
