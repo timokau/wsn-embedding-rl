@@ -22,6 +22,7 @@ class ENode():
         self.node = node
         self.relay = self.block is None
         self.predecessor = predecessor
+        self._hash = None
         if self.block is not None:
             self.acting_as = block
         elif self.predecessor is not None:
@@ -50,9 +51,12 @@ class ENode():
         return not self.__eq__(other)
 
     def __hash__(self):
-        if self.relay:
-            return hash((self.block, self.node, self.predecessor))
-        return hash((self.block, self.node))
+        if self._hash is None:
+            if self.relay:
+                self._hash = hash((self.block, self.node, self.predecessor))
+            else:
+                self._hash = hash((self.block, self.node))
+        return self._hash
 
 class PartialEmbedding():
     # pylint: disable=too-many-instance-attributes
