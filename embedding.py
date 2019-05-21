@@ -84,7 +84,6 @@ class PartialEmbedding():
         self._transmissions_at = dict()
 
         self._build_possibilities_graph(source_mapping)
-        self.readjust()
 
     def possibilities(self):
         """Returns a list of possible actions (edges)"""
@@ -311,15 +310,15 @@ class PartialEmbedding():
             return False
         return True
 
-    def _remove_infeasible_links(self, timeslot=None):
+    def _remove_infeasible_links(self, timeslot):
         for (source, target, link_ts) in self.possibilities():
-            if timeslot is not None and link_ts != timeslot:
+            if link_ts != timeslot:
                 continue
 
             if not self._link_feasible(source, target, link_ts):
                 self.remove_link(source, target, link_ts)
 
-    def readjust(self, timeslot=None):
+    def readjust(self, timeslot):
         """Removes now infeasible actions"""
         self._remove_infeasible_links(timeslot)
 
