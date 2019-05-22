@@ -82,6 +82,7 @@ class PartialEmbedding():
         self._relays = set()
         self._by_block = dict()
         self._transmissions_at = dict()
+        self._known_sinr_cache = dict()
 
         self._build_possibilities_graph(source_mapping)
 
@@ -367,31 +368,43 @@ class PartialEmbedding():
         SINR assuming only already chosen edges and the currently
         considered edges are sending.
         """
-        received_signal_dbm = self.infra.power_received_dbm(
+        index = (
             source_node,
             target_node,
-        )
-
-        # make sure source node is already counted (which it will be
-        # in the case of broadcast anyway), subtract it later
-        additional_senders = set(additional_senders)
-        additional_senders.add(source_node)
-
-        received_power_dbm = self.power_at_node(
-            target_node,
-            timeslot,
-            additional_senders=additional_senders,
-        )
-        received_interference_dbm = wsignal.subtract_dbm(
-            received_power_dbm,
-            received_signal_dbm,
-        )
-
-        return wsignal.sinr(
-            received_signal_dbm,
-            received_interference_dbm,
+            tuple(additional_senders),
             noise_floor_dbm,
         )
+        timeslot_cache = self._known_sinr_cache.get(timeslot, dict())
+        cached = timeslot_cache.get(index)
+        if cached is None:
+            received_signal_dbm = self.infra.power_received_dbm(
+                source_node,
+                target_node,
+            )
+
+            # make sure source node is already counted (which it will be
+            # in the case of broadcast anyway), subtract it later
+            additional_senders = set(additional_senders)
+            additional_senders.add(source_node)
+
+            received_power_dbm = self.power_at_node(
+                target_node,
+                timeslot,
+                additional_senders=additional_senders,
+            )
+            received_interference_dbm = wsignal.subtract_dbm(
+                received_power_dbm,
+                received_signal_dbm,
+            )
+
+            cached = wsignal.sinr(
+                received_signal_dbm,
+                received_interference_dbm,
+                noise_floor_dbm,
+            )
+            timeslot_cache[index] = cached
+            self._known_sinr_cache[timeslot] = timeslot_cache
+        return cached
 
     def wire_up_outgoing(
             self,
@@ -463,6 +476,7 @@ class PartialEmbedding():
             timeslot=timeslot,
             key=timeslot,
         )
+        self._known_sinr_cache[timeslot] = dict()
         self._transmissions_at[timeslot] = self._transmissions_at.get(
             timeslot,
             [],
