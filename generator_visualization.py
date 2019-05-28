@@ -172,13 +172,9 @@ def get_random_action(
     """Take a random action on the given partial embedding"""
     possibilities = embedding.possibilities()
     if len(possibilities) == 0:
-        print('No action possible')
         return None
     choice = rand.randint(0, len(possibilities))
     action = possibilities[choice]
-    print(f'Picking random action {action} from')
-    for possibility in possibilities:
-        print('\t' + str(possibility))
     return action
 
 def _main():
