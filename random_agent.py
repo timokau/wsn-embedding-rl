@@ -5,14 +5,14 @@ from rl_coach.base_parameters import (
     AgentParameters,
     AlgorithmParameters,
     EmbedderScheme,
+    MiddlewareScheme,
     NetworkParameters,
-    NetworkComponentParameters,
 )
 from rl_coach.exploration_policies.greedy import GreedyParameters
 from rl_coach.memories.episodic import SingleEpisodeBufferParameters
 from rl_coach.architectures.head_parameters import HeadParameters
 from rl_coach.architectures.embedder_parameters import InputEmbedderParameters
-from rl_coach.architectures.tensorflow_components.middlewares import middleware
+from rl_coach.architectures.middleware_parameters import FCMiddlewareParameters
 
 from rl_coach.spaces import SpacesDefinition
 from rl_coach.architectures.tensorflow_components.heads.head import Head
@@ -78,24 +78,6 @@ class IdentityHeadParameters(HeadParameters):
         return "random_agent:IdentityHead"
 
 
-class IdentityMiddleware(middleware.Middleware):
-    """Middleware that does nothing"""
-
-    def schemes(self):
-        raise NotImplementedError()
-
-
-class IdentityMiddlewareParameters(NetworkComponentParameters):
-    """Parameters for IdentityMiddleware"""
-
-    def __init__(self):
-        super().__init__(dense_layer=None)
-
-    @property
-    def path(self):
-        return "random_agent:IdentityMiddleware"
-
-
 class IdentityNetworkParameters(NetworkParameters):
     """Parameters for a network that does nothing"""
 
@@ -104,7 +86,9 @@ class IdentityNetworkParameters(NetworkParameters):
         self.input_embedders_parameters = {
             "observation": InputEmbedderParameters(scheme=EmbedderScheme.Empty)
         }
-        self.middleware_parameters = IdentityMiddlewareParameters()
+        self.middleware_parameters = FCMiddlewareParameters(
+            scheme=MiddlewareScheme.Empty
+        )
         self.heads_parameters = [IdentityHeadParameters()]
 
 
