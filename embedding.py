@@ -89,6 +89,7 @@ class PartialEmbedding:
         self._by_block = dict()
         self._transmissions_at = dict()
         self._known_sinr_cache = dict()
+        self.embedded_links = []
 
         self._build_possibilities_graph(source_mapping)
 
@@ -392,6 +393,8 @@ class PartialEmbedding:
         self.graph.add_edge(
             source, new_enode, chosen=True, timeslot=timeslot, key=timeslot
         )
+        if not new_enode.relay:
+            self.embedded_links += [(source.acting_as, new_enode.acting_as)]
         before = self.graph.nodes[source].get("chosen_out", 0)
         self.graph.nodes[source]["chosen_out"] = before + 1
         self._known_sinr_cache[timeslot] = dict()
@@ -422,24 +425,11 @@ class PartialEmbedding:
         chosen_edges = {(u, v, k) for (u, v, k, d) in edges if d["chosen"]}
         return self.graph.edge_subgraph(chosen_edges)
 
-    def _link_in_subgraph(self, subgraph, source_block, target_block):
-        for esource in self._by_block[source_block]:
-            if esource not in subgraph:
-                continue
-            for etarget in self._by_block[target_block]:
-                if etarget not in subgraph:
-                    continue
-                if nx.has_path(subgraph, esource, etarget):
-                    return True
-        return False
-
     def is_complete(self):
         """Determines if all blocks and links are embedded"""
-        subgraph = self.chosen_subgraph()
-
         # check that each link is embedded
-        for (bsource, btarget) in self.overlay.links():
-            if not self._link_in_subgraph(subgraph, bsource, btarget):
+        for link in self.overlay.links():
+            if link not in self.embedded_links:
                 return False
         return True
 
