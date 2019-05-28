@@ -4,15 +4,14 @@ from rl_coach.agents.agent import Agent
 from rl_coach.base_parameters import (
     AgentParameters,
     AlgorithmParameters,
+    EmbedderScheme,
     NetworkParameters,
     NetworkComponentParameters,
 )
 from rl_coach.exploration_policies.greedy import GreedyParameters
 from rl_coach.memories.episodic import SingleEpisodeBufferParameters
 from rl_coach.architectures.head_parameters import HeadParameters
-from rl_coach.architectures.tensorflow_components.embedders.embedder import (
-    InputEmbedder,
-)
+from rl_coach.architectures.embedder_parameters import InputEmbedderParameters
 from rl_coach.architectures.tensorflow_components.middlewares import middleware
 
 from rl_coach.spaces import SpacesDefinition
@@ -79,33 +78,6 @@ class IdentityHeadParameters(HeadParameters):
         return "random_agent:IdentityHead"
 
 
-class IdentityEmbedder(InputEmbedder):
-    """Embedder that does nothing"""
-
-    def __init__(
-        self,
-        agent_parameters: AgentParameters,
-        spaces: SpacesDefinition,
-        network_name: str,
-    ):
-        super().__init__(agent_parameters, spaces, network_name)
-        self.name = "identity_embedder"
-
-    def schemes(self):
-        raise NotImplementedError()
-
-
-class IdentityEmbedderParameters(NetworkComponentParameters):
-    """Parameters for the IdentityEmbedder"""
-
-    def __init__(self):
-        super().__init__(dense_layer=None)
-
-    def path(self, _):
-        # pylint: disable=arguments-differ
-        return "random_agent:IdentityEmbedder"
-
-
 class IdentityMiddleware(middleware.Middleware):
     """Middleware that does nothing"""
 
@@ -130,7 +102,7 @@ class IdentityNetworkParameters(NetworkParameters):
     def __init__(self):
         super().__init__()
         self.input_embedders_parameters = {
-            "observation": IdentityEmbedderParameters()
+            "observation": InputEmbedderParameters(scheme=EmbedderScheme.Empty)
         }
         self.middleware_parameters = IdentityMiddlewareParameters()
         self.heads_parameters = [IdentityHeadParameters()]
