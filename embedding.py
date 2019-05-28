@@ -283,18 +283,13 @@ class PartialEmbedding():
 
     def _unembedded_outlinks_left(self, enode):
         """Checks if there are any unembedded outgoing links left"""
-        num_embedded_out_links = 0
-        for (_, _, data) in list(self.graph.out_edges(
-                nbunch=[enode],
-                data=True,
-        )):
-            if data['chosen']:
-                num_embedded_out_links += 1
+        embedded = self.graph.nodes[enode].get('chosen_out', 0)
 
-        num_out_links_to_embed = len(self.overlay.graph.out_edges(
-            nbunch=[enode.acting_as],
-        ))
-        return num_out_links_to_embed > num_embedded_out_links
+        num_out_links_to_embed = len(
+            self.overlay.graph.out_edges(nbunch=[enode.acting_as])
+        )
+
+        return num_out_links_to_embed > embedded
 
     def _valid_by_itself(self, source, target, timeslot):
         if not self._sinr_valid(source, target, timeslot):
@@ -476,6 +471,8 @@ class PartialEmbedding():
             timeslot=timeslot,
             key=timeslot,
         )
+        before = self.graph.nodes[source].get('chosen_out', 0)
+        self.graph.nodes[source]['chosen_out'] = before + 1
         self._known_sinr_cache[timeslot] = dict()
         self._transmissions_at[timeslot] = self._transmissions_at.get(
             timeslot,
