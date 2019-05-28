@@ -1,10 +1,8 @@
 """Test wireless signal utility functions"""
 
 from pytest import approx
-from wsignal import (
-        dbm_to_watt,
-        watt_to_dbm,
-)
+from wsignal import dbm_to_watt, watt_to_dbm
+
 
 def test_known_dbm_to_watt_results():
     """
@@ -17,6 +15,7 @@ def test_known_dbm_to_watt_results():
     assert dbm_to_watt(30) == approx(1)
     assert dbm_to_watt(40) == approx(10)
 
+
 def test_known_watt_to_dbm_results():
     """
     Tests watt to dbm conversion with some manually verified examples.
@@ -25,6 +24,7 @@ def test_known_watt_to_dbm_results():
     assert watt_to_dbm(1e-3) == approx(0)
     assert watt_to_dbm(1e-4) == approx(-10)
     assert watt_to_dbm(1) == approx(30)
+
 
 def test_db_watt_conversion_reversible():
     """

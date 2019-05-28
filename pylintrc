@@ -61,7 +61,10 @@ confidence=
 # --enable=similarities". If you want to run only the classes checker, but have
 # no Warning level messages displayed, use "--disable=all --enable=classes
 # --disable=W".
-disable=len-as-condition, # `if len(seq) != 0` is better than `if seq`
+
+# `if len(seq) != 0` is better than `if seq`
+# bad-continuation false-positives, black disagrees
+disable=len-as-condition,bad-continuation
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

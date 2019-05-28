@@ -5,14 +5,18 @@ from matplotlib import pyplot as plt
 import networkx as nx
 import numpy as np
 
+
 class BlockKind(Enum):
     """Types of overlay nodes"""
+
     source = 1
     sink = 2
     intermediate = 3
 
-class OverlayNetwork():
+
+class OverlayNetwork:
     """Model of the overlay network"""
+
     def __init__(self):
         self.graph = nx.DiGraph()
         self._last_id = 0
@@ -29,75 +33,47 @@ class OverlayNetwork():
         """Returns all links of the overlay"""
         return self.graph.edges()
 
-    def add_source(
-            self,
-            name=None
-    ):
+    def add_source(self, name=None):
         """Adds a new source node to the overlay and returns it"""
-        block = self._add_block(
-            name,
-            BlockKind.source
-        )
+        block = self._add_block(name, BlockKind.source)
         self.sources.add(block)
         return block
 
-    def add_intermediate(
-            self,
-            name=None
-    ):
+    def add_intermediate(self, name=None):
         """Adds a new intermediate node to the overlay and returns it"""
-        block = self._add_block(
-            name,
-            BlockKind.intermediate
-        )
+        block = self._add_block(name, BlockKind.intermediate)
         self.intermediates.add(block)
         return block
 
-    def set_sink(
-            self,
-            name=None
-    ):
+    def set_sink(self, name=None):
         """Creates a new node, sets it as the sink node and returns it"""
-        block = self._add_block(
-            name,
-            BlockKind.sink
-        )
+        block = self._add_block(name, BlockKind.sink)
         self.sink = block
         return block
 
-    def _add_block(
-            self,
-            name,
-            kind: BlockKind,
-    ):
+    def _add_block(self, name, kind: BlockKind):
         """Adds a block to the overlay network"""
 
         if name is None:
             name = self._generate_name()
-        self.graph.add_node(
-            name,
-            kind=kind,
-        )
+        self.graph.add_node(name, kind=kind)
         return name
 
     def _generate_name(self):
         self._last_id += 1
-        return f'B{self._last_id}'
+        return f"B{self._last_id}"
 
-    def add_link(
-            self,
-            source: str,
-            sink: str,
-    ):
+    def add_link(self, source: str, sink: str):
         """Adds a link between two blocks in the overlay network"""
         self.graph.add_edge(source, sink)
 
+
 def random_overlay(
-        rand,
-        pairwise_connection_prob=0.02,
-        min_blocks=2,
-        max_blocks=10,
-        num_sources=1,
+    rand,
+    pairwise_connection_prob=0.02,
+    min_blocks=2,
+    max_blocks=10,
+    num_sources=1,
 ):
     """Generates a randomized overlay graph."""
     # This is a complicated function, but it would only get harder to
@@ -106,7 +82,7 @@ def random_overlay(
     assert num_sources < min_blocks
 
     # select a block count uniformly distributed over the given interval
-    num_blocks = rand.randint(min_blocks, max_blocks+1)
+    num_blocks = rand.randint(min_blocks, max_blocks + 1)
 
     overlay = OverlayNetwork()
 
@@ -162,23 +138,22 @@ def random_overlay(
 
     return overlay
 
+
 def draw_overlay(
-        overlay: OverlayNetwork,
-        sources_color='red',
-        sink_color='yellow',
-        intermediates_color='green',
+    overlay: OverlayNetwork,
+    sources_color="red",
+    sink_color="yellow",
+    intermediates_color="green",
 ):
     """Draws a given OverlayNetwork"""
     shared_args = {
-        'G': overlay.graph,
-        'pos': nx.spring_layout(overlay.graph),
-        'node_size': 450,
-        'node_shape': 's',
+        "G": overlay.graph,
+        "pos": nx.spring_layout(overlay.graph),
+        "node_size": 450,
+        "node_shape": "s",
     }
     nx.draw_networkx_nodes(
-        nodelist=list(overlay.sources),
-        node_color=sources_color,
-        **shared_args,
+        nodelist=list(overlay.sources), node_color=sources_color, **shared_args
     )
     nx.draw_networkx_nodes(
         nodelist=list(overlay.intermediates),
@@ -186,20 +161,15 @@ def draw_overlay(
         **shared_args,
     )
     nx.draw_networkx_nodes(
-        nodelist=[overlay.sink],
-        node_color=sink_color,
-        **shared_args,
+        nodelist=[overlay.sink], node_color=sink_color, **shared_args
     )
-    nx.draw_networkx_labels(
-        **shared_args,
-    )
-    nx.draw_networkx_edges(
-        **shared_args,
-    )
+    nx.draw_networkx_labels(**shared_args)
+    nx.draw_networkx_edges(**shared_args)
 
     # positions are arbitrary for an overlay
     plt.gca().get_xaxis().set_visible(False)
     plt.gca().get_yaxis().set_visible(False)
+
 
 if __name__ == "__main__":
     draw_overlay(random_overlay(np.random))

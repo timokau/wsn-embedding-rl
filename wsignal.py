@@ -4,14 +4,13 @@ Some helper function for dealing with wireless signal transmission.
 
 from math import inf, log, sqrt
 
-def subtract_dbm(
-        dbm1: float,
-        dbm2: float,
-):
+
+def subtract_dbm(dbm1: float, dbm2: float):
     """Adds two decibel values"""
     watt1 = dbm_to_watt(dbm1)
     watt2 = dbm_to_watt(dbm2)
     return watt_to_dbm(watt1 - watt2)
+
 
 def dbm_to_watt(dbm: float):
     """
@@ -42,6 +41,7 @@ def dbm_to_watt(dbm: float):
     watts = milliwatts / 1000.0
     return watts
 
+
 def watt_to_dbm(watts: float):
     """
     Converts an amount in watt to a ratio to 1mW, represented in dBm.
@@ -54,11 +54,10 @@ def watt_to_dbm(watts: float):
     decibel = bell * 10.0
     return decibel
 
+
 def log_path_loss(
-        distance_meters: float,
-        loss_exponent: int = 4,
-        system_loss: float = 0
-    ):
+    distance_meters: float, loss_exponent: int = 4, system_loss: float = 0
+):
     """
     Returns the approximated path loss (in dB) over a certain distance
     using the simple log-distance model. This approximation is dependent
@@ -84,22 +83,15 @@ def log_path_loss(
     # can never be negative.
     return max([loss, 0])
 
-def distance(
-        x1: float,
-        y1: float,
-        x2: float,
-        y2: float,
-):
+
+def distance(x1: float, y1: float, x2: float, y2: float):
     """
     Calculates the euclidean distance between two points in 2d space.
     """
     return sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
 
-def power_received(
-        distance_meter: float,
-        transmit_power_dbm: float,
-):
+def power_received(distance_meter: float, transmit_power_dbm: float):
     """
     Calculates the power received at target when source sends at
     full transmission power (based on log path loss model).
@@ -108,10 +100,11 @@ def power_received(
     # path loss is in dB, so this subtraction is "actually" a division
     return transmit_power_dbm - path_loss
 
+
 def sinr(
-        received_signal_dbm: float,
-        received_interference_dbm: float,
-        noise_floor_dbm: float,
+    received_signal_dbm: float,
+    received_interference_dbm: float,
+    noise_floor_dbm: float,
 ):
     """
     Calculate the Signal Interference Noise Ratio in decibels.
@@ -122,8 +115,9 @@ def sinr(
     Should always hold.
     """
     # We need to convert to watts for addition (log scale can only multiply)
-    received_noise_watt = dbm_to_watt(received_interference_dbm) \
-            + dbm_to_watt(noise_floor_dbm)
+    received_noise_watt = dbm_to_watt(received_interference_dbm) + dbm_to_watt(
+        noise_floor_dbm
+    )
     received_noise_dbm = watt_to_dbm(received_noise_watt)
 
     # Even though it is called Signal Interference Noise *Ratio*, here we have

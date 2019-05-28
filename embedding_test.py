@@ -2,16 +2,10 @@
 
 from pytest import approx
 
-from infrastructure import (
-        InfrastructureNetwork,
-)
-from overlay import (
-        OverlayNetwork,
-)
-from embedding import (
-        PartialEmbedding,
-        ENode,
-)
+from infrastructure import InfrastructureNetwork
+from overlay import OverlayNetwork
+from embedding import PartialEmbedding, ENode
+
 
 def test_path_loss():
     """
@@ -25,14 +19,8 @@ def test_path_loss():
     # 30dBm, less than ~-30dBm (approx. 10^-3 = 0.001mW = 1uW) arrives
     # at the target. That is a very optimistic approximation and is not
     # nearly enough to send any reasonable signal.
-    source_node = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=1,
-    )
-    infra.set_sink(
-        pos=(1000, 0),
-        transmit_power_dbm=0, # does not matter
-    )
+    source_node = infra.add_source(pos=(0, 0), transmit_power_dbm=1)
+    infra.set_sink(pos=(1000, 0), transmit_power_dbm=0)
 
     overlay = OverlayNetwork()
     source_block = overlay.add_source()
@@ -48,6 +36,7 @@ def test_path_loss():
     )
     assert len(embedding.possibilities()) == 0
 
+
 def test_trivial_possibilities():
     """
     Tests that a single reasonable option is correctly generated in a
@@ -59,14 +48,8 @@ def test_trivial_possibilities():
     # transmit_power_dbm
     # power of 30dBm (similar to a regular router) which should easily
     # cover the distance of 1m without any noise.
-    source_node = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=.1,
-    )
-    infra.set_sink(
-        pos=(1, 0),
-        transmit_power_dbm=0, # does not matter
-    )
+    source_node = infra.add_source(pos=(0, 0), transmit_power_dbm=0.1)
+    infra.set_sink(pos=(1, 0), transmit_power_dbm=0)
 
     overlay = OverlayNetwork()
     source_block = overlay.add_source()
@@ -83,6 +66,7 @@ def test_trivial_possibilities():
     # either go to N2 as a relay (doesn't make sense but is a viable
     # option), or embed B2 into N2 and go there
     assert len(embedding.possibilities()) == 2
+
 
 def test_manually_verified_sinr():
     """
@@ -174,6 +158,7 @@ def test_manually_verified_sinr():
     sinr = embedding.known_sinr(n_source1, n_interm1, 0, noise_floor_dbm=15)
     assert sinr == approx(11.46, abs=0.1)
 
+
 def test_invalidating_earlier_choice_impossible():
     """
     Tests that an action that would invalidate an earlier action is
@@ -188,20 +173,12 @@ def test_invalidating_earlier_choice_impossible():
     # power of 30dBm (similar to a regular router) which should easily
     # cover the distance of 1m without any noise.
     source_node_silent = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=20,
-        name="Silent",
+        pos=(0, 0), transmit_power_dbm=20, name="Silent"
     )
     source_node_screamer = infra.add_source(
-        pos=(3, 0),
-        transmit_power_dbm=100,
-        name="Screamer",
+        pos=(3, 0), transmit_power_dbm=100, name="Screamer"
     )
-    node_sink = infra.set_sink(
-        pos=(1, 3),
-        transmit_power_dbm=0, # does not matter
-        name="Sink",
-    )
+    node_sink = infra.set_sink(pos=(1, 3), transmit_power_dbm=0, name="Sink")
 
     overlay = OverlayNetwork()
 
@@ -244,6 +221,7 @@ def test_invalidating_earlier_choice_impossible():
     # sink embedded) options left in the newly created second timeslot
     assert len(new_possibilities) == 3
 
+
 def test_no_unnecessary_options():
     """
     Tests that no unnecessary connections are offered.
@@ -257,15 +235,9 @@ def test_no_unnecessary_options():
     # power of 30dBm (similar to a regular router) which should easily
     # cover the distance of 1m without any noise.
     source_node = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=30,
-        name="Source",
+        pos=(0, 0), transmit_power_dbm=30, name="Source"
     )
-    sink_node = infra.set_sink(
-        pos=(1, 3),
-        transmit_power_dbm=0,
-        name="Sink",
-    )
+    sink_node = infra.set_sink(pos=(1, 3), transmit_power_dbm=0, name="Sink")
 
     overlay = OverlayNetwork()
 
@@ -277,9 +249,7 @@ def test_no_unnecessary_options():
     embedding = PartialEmbedding(
         infra,
         overlay,
-        source_mapping=[
-            (esource.block, esource.node),
-        ],
+        source_mapping=[(esource.block, esource.node)],
         sinrth=2.0,
     )
 
@@ -296,6 +266,7 @@ def test_no_unnecessary_options():
     # since all outgoing connections are already embedded.
     assert len(embedding.possibilities()) == 0
 
+
 def test_all_viable_options_offered():
     """
     Tests that all manually verified options are offered in a concrete
@@ -311,26 +282,14 @@ def test_all_viable_options_offered():
         transmit_power_dbm=100,
         name="N1",
     )
-    nsource2 = infra.add_source(
-        pos=(1, 0),
-        transmit_power_dbm=100,
-        name="N2",
-    )
+    nsource2 = infra.add_source(pos=(1, 0), transmit_power_dbm=100, name="N2")
     _nrelay = infra.add_intermediate(
-        pos=(0, 1),
-        transmit_power_dbm=100,
-        name="N3",
+        pos=(0, 1), transmit_power_dbm=100, name="N3"
     )
     ninterm = infra.add_intermediate(
-        pos=(2, 0),
-        transmit_power_dbm=100,
-        name="N4",
+        pos=(2, 0), transmit_power_dbm=100, name="N4"
     )
-    nsink = infra.set_sink(
-        pos=(1, 1),
-        transmit_power_dbm=100,
-        name="N5",
-    )
+    nsink = infra.set_sink(pos=(1, 1), transmit_power_dbm=100, name="N5")
 
     overlay = OverlayNetwork()
 
@@ -364,6 +323,7 @@ def test_all_viable_options_offered():
     # No timeslot is used yet, so there is just one timeslot option.
     assert len(embedding.possibilities()) == 6 + 6
 
+
 def test_timeslots_dynamically_created():
     """Tests the dynamic creation of new timeslots as needed"""
     infra = InfrastructureNetwork()
@@ -374,14 +334,8 @@ def test_timeslots_dynamically_created():
         # transmit in the same timeslot
         transmit_power_dbm=1000,
     )
-    nsource2 = infra.add_source(
-        pos=(1, 0),
-        transmit_power_dbm=1000,
-    )
-    nsink = infra.set_sink(
-        pos=(1, 1),
-        transmit_power_dbm=1000,
-    )
+    nsource2 = infra.add_source(pos=(1, 0), transmit_power_dbm=1000)
+    nsink = infra.set_sink(pos=(1, 1), transmit_power_dbm=1000)
 
     overlay = OverlayNetwork()
 
@@ -422,6 +376,7 @@ def test_timeslots_dynamically_created():
     # timeslot.
     assert len(embedding.possibilities()) == 3
 
+
 def test_completion_detection():
     """
     Tests that the completeness of an embedding is accurately detected
@@ -436,14 +391,8 @@ def test_completion_detection():
         # transmit power should not block anything in this example
         transmit_power_dbm=100,
     )
-    _nrelay = infra.add_intermediate(
-        pos=(0, 1),
-        transmit_power_dbm=100,
-    )
-    nsink = infra.set_sink(
-        pos=(1, 1),
-        transmit_power_dbm=100,
-    )
+    _nrelay = infra.add_intermediate(pos=(0, 1), transmit_power_dbm=100)
+    nsink = infra.set_sink(pos=(1, 1), transmit_power_dbm=100)
 
     overlay = OverlayNetwork()
 
@@ -455,9 +404,7 @@ def test_completion_detection():
     embedding = PartialEmbedding(
         infra,
         overlay,
-        source_mapping=[
-            (esource.block, esource.node),
-        ],
+        source_mapping=[(esource.block, esource.node)],
         sinrth=2.0,
     )
 
@@ -467,6 +414,7 @@ def test_completion_detection():
 
     assert embedding.is_complete()
 
+
 def test_parallel_receive_impossible():
     """
     Tests that receiving from two sender nodes at the same time is
@@ -474,18 +422,9 @@ def test_parallel_receive_impossible():
     """
     infra = InfrastructureNetwork()
 
-    nsource1 = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=30,
-    )
-    nsource2 = infra.add_source(
-        pos=(3, 0),
-        transmit_power_dbm=30,
-    )
-    nsink = infra.set_sink(
-        pos=(2, 0),
-        transmit_power_dbm=30,
-    )
+    nsource1 = infra.add_source(pos=(0, 0), transmit_power_dbm=30)
+    nsource2 = infra.add_source(pos=(3, 0), transmit_power_dbm=30)
+    nsink = infra.set_sink(pos=(2, 0), transmit_power_dbm=30)
 
     overlay = OverlayNetwork()
 
@@ -512,23 +451,15 @@ def test_parallel_receive_impossible():
     embedding.take_action(esource1, esink, 0)
     assert not embedding.take_action(esource2, esink, 0)
 
+
 def test_broadcast_possible():
     """Tests that broadcast is possible despite SINR constraints"""
     infra = InfrastructureNetwork()
 
     # One source, one sink, one intermediate
-    nsource = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=30,
-    )
-    ninterm = infra.add_intermediate(
-        pos=(1, 2),
-        transmit_power_dbm=30,
-    )
-    nsink = infra.set_sink(
-        pos=(2, 0),
-        transmit_power_dbm=30,
-    )
+    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=30)
+    ninterm = infra.add_intermediate(pos=(1, 2), transmit_power_dbm=30)
+    nsink = infra.set_sink(pos=(2, 0), transmit_power_dbm=30)
 
     overlay = OverlayNetwork()
 
@@ -546,18 +477,12 @@ def test_broadcast_possible():
     embedding = PartialEmbedding(
         infra,
         overlay,
-        source_mapping=[
-            (esource.block, esource.node),
-        ],
+        source_mapping=[(esource.block, esource.node)],
         sinrth=2.0,
     )
 
     # Broadcast from source to sink and intermediate
-    sinr_before = embedding.known_sinr(
-        esource.node,
-        esink.node,
-        timeslot=0,
-    )
+    sinr_before = embedding.known_sinr(esource.node, esink.node, timeslot=0)
     assert embedding.take_action(esource, esink, 0)
     power_at_sink = embedding.power_at_node(esink.node, 0)
     assert embedding.take_action(esource, einterm, 0)
@@ -567,27 +492,17 @@ def test_broadcast_possible():
 
     # Make sure the broadcasts do not interfere with each other
     assert sinr_before == embedding.known_sinr(
-        esource.node,
-        esink.node,
-        timeslot=0,
+        esource.node, esink.node, timeslot=0
     )
+
 
 def test_count_timeslots_multiple_sources():
     """Tests correct counting behaviour with multiple sources"""
     infra = InfrastructureNetwork()
 
-    nsource1 = infra.add_source(
-        pos=(0, -1),
-        transmit_power_dbm=30,
-    )
-    nsource2 = infra.add_source(
-        pos=(0, 1),
-        transmit_power_dbm=30,
-    )
-    nsink = infra.set_sink(
-        pos=(1, 0),
-        transmit_power_dbm=30,
-    )
+    nsource1 = infra.add_source(pos=(0, -1), transmit_power_dbm=30)
+    nsource2 = infra.add_source(pos=(0, 1), transmit_power_dbm=30)
+    nsink = infra.set_sink(pos=(1, 0), transmit_power_dbm=30)
 
     overlay = OverlayNetwork()
 
@@ -621,50 +536,29 @@ def test_count_timeslots_multiple_sources():
     assert embedding.is_complete()
     assert embedding.used_timeslots == 2
 
+
 def test_count_timeslots_parallel():
     """Tests correct counting behaviour with parallel connections"""
     infra = InfrastructureNetwork()
 
     # One source, one sink, two intermediates
     nsource = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=30,
-        name='nsource',
+        pos=(0, 0), transmit_power_dbm=30, name="nsource"
     )
     ninterm1 = infra.add_intermediate(
-        pos=(1, 2),
-        transmit_power_dbm=30,
-        name='ninterm1',
+        pos=(1, 2), transmit_power_dbm=30, name="ninterm1"
     )
     ninterm2 = infra.add_intermediate(
-        pos=(1, -2),
-        transmit_power_dbm=30,
-        name='ninterm2',
+        pos=(1, -2), transmit_power_dbm=30, name="ninterm2"
     )
-    nsink = infra.set_sink(
-        pos=(2, 0),
-        transmit_power_dbm=30,
-        name='nsink',
-    )
+    nsink = infra.set_sink(pos=(2, 0), transmit_power_dbm=30, name="nsink")
 
     overlay = OverlayNetwork()
 
-    esource = ENode(
-        overlay.add_source(name='bsource'),
-        nsource,
-    )
-    einterm1 = ENode(
-        overlay.add_intermediate(name='binterm1'),
-        ninterm1,
-    )
-    einterm2 = ENode(
-        overlay.add_intermediate(name='binterm2'),
-        ninterm2,
-    )
-    esink = ENode(
-        overlay.set_sink(name='bsink'),
-        nsink,
-    )
+    esource = ENode(overlay.add_source(name="bsource"), nsource)
+    einterm1 = ENode(overlay.add_intermediate(name="binterm1"), ninterm1)
+    einterm2 = ENode(overlay.add_intermediate(name="binterm2"), ninterm2)
+    esink = ENode(overlay.set_sink(name="bsink"), nsink)
 
     # fork
     overlay.add_link(esource.block, einterm1.block)
@@ -676,9 +570,7 @@ def test_count_timeslots_parallel():
     embedding = PartialEmbedding(
         infra,
         overlay,
-        source_mapping=[
-            (esource.block, esource.node),
-        ],
+        source_mapping=[(esource.block, esource.node)],
         sinrth=2.0,
     )
 
@@ -701,50 +593,27 @@ def test_count_timeslots_parallel():
     assert embedding.is_complete()
     assert embedding.used_timeslots == 3
 
+
 def test_count_timeslots_loop():
     """Tests reasonable counting behaviour with loops"""
     infra = InfrastructureNetwork()
 
     # One source, one sink, two intermediates
-    nsource = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=30,
-        name='nso',
-    )
+    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=30, name="nso")
     ninterm1 = infra.add_intermediate(
-        pos=(2, 1),
-        transmit_power_dbm=5,
-        name='ni1',
+        pos=(2, 1), transmit_power_dbm=5, name="ni1"
     )
     ninterm2 = infra.add_intermediate(
-        pos=(0, -1),
-        transmit_power_dbm=5,
-        name='ni2',
+        pos=(0, -1), transmit_power_dbm=5, name="ni2"
     )
-    nsink = infra.set_sink(
-        pos=(2, 0),
-        transmit_power_dbm=30,
-        name='nsi',
-    )
+    nsink = infra.set_sink(pos=(2, 0), transmit_power_dbm=30, name="nsi")
 
     overlay = OverlayNetwork()
 
-    esource = ENode(
-        overlay.add_source(name='bso'),
-        nsource,
-    )
-    einterm1 = ENode(
-        overlay.add_intermediate(name='bi1'),
-        ninterm1,
-    )
-    einterm2 = ENode(
-        overlay.add_intermediate(name='bi2'),
-        ninterm2,
-    )
-    esink = ENode(
-        overlay.set_sink(name='bsi'),
-        nsink
-    )
+    esource = ENode(overlay.add_source(name="bso"), nsource)
+    einterm1 = ENode(overlay.add_intermediate(name="bi1"), ninterm1)
+    einterm2 = ENode(overlay.add_intermediate(name="bi2"), ninterm2)
+    esink = ENode(overlay.set_sink(name="bsi"), nsink)
 
     overlay.add_link(esource.block, einterm1.block)
     overlay.add_link(einterm1.block, esink.block)
@@ -754,9 +623,7 @@ def test_count_timeslots_loop():
     embedding = PartialEmbedding(
         infra,
         overlay,
-        source_mapping=[
-            (esource.block, esource.node),
-        ],
+        source_mapping=[(esource.block, esource.node)],
         sinrth=2.0,
     )
 
@@ -783,6 +650,7 @@ def test_count_timeslots_loop():
     assert embedding.is_complete()
     assert embedding.used_timeslots == 3
 
+
 def test_relays_correctly_wired_up():
     """
     Tests that if an connection to a relay is selected, the relay is
@@ -791,74 +659,60 @@ def test_relays_correctly_wired_up():
     infra = InfrastructureNetwork()
 
     # One source, one sink, two relays
-    nsource = infra.add_source(
-        pos=(0, 0),
-        transmit_power_dbm=1,
-        name='nso',
-    )
+    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=1, name="nso")
     nrelay1 = infra.add_intermediate(
-        pos=(10, 0),
-        transmit_power_dbm=1,
-        name='nrelay1',
+        pos=(10, 0), transmit_power_dbm=1, name="nrelay1"
     )
     nrelay2 = infra.add_intermediate(
-        pos=(20, 0),
-        transmit_power_dbm=1,
-        name='nrelay2',
+        pos=(20, 0), transmit_power_dbm=1, name="nrelay2"
     )
-    nsink = infra.set_sink(
-        pos=(30, 0),
-        transmit_power_dbm=1,
-        name='nsi',
-    )
+    nsink = infra.set_sink(pos=(30, 0), transmit_power_dbm=1, name="nsi")
 
     overlay = OverlayNetwork()
 
-    esource = ENode(
-        overlay.add_source(name='bso'),
-        nsource,
-    )
-    esink = ENode(
-        overlay.set_sink(name='bsi'),
-        nsink,
-    )
+    esource = ENode(overlay.add_source(name="bso"), nsource)
+    esink = ENode(overlay.set_sink(name="bsi"), nsink)
 
     overlay.add_link(esource.block, esink.block)
 
     embedding = PartialEmbedding(
         infra,
         overlay,
-        source_mapping=[
-            (esource.block, esource.node),
-        ],
+        source_mapping=[(esource.block, esource.node)],
         sinrth=2.0,
     )
 
     assert not embedding.is_complete()
     assert embedding.used_timeslots == 0
 
-    assert set(embedding.possibilities()) == set([
-        (esource, esink, 0),
-        (esource, ENode(None, nsink), 0),
-        (esource, ENode(None, nrelay1), 0),
-        (esource, ENode(None, nrelay2), 0),
-    ])
+    assert set(embedding.possibilities()) == set(
+        [
+            (esource, esink, 0),
+            (esource, ENode(None, nsink), 0),
+            (esource, ENode(None, nrelay1), 0),
+            (esource, ENode(None, nrelay2), 0),
+        ]
+    )
 
     assert embedding.take_action(esource, ENode(None, nrelay1), 0)
 
     erelay1_source = ENode(None, nrelay1, predecessor=esource)
-    assert set(embedding.possibilities()) == set([
-        (erelay1_source, esink, 1),
-        (erelay1_source, ENode(None, nsource), 1),
-        (erelay1_source, ENode(None, nsink), 1),
-        (erelay1_source, ENode(None, nrelay2), 1),
-    ])
+    assert set(embedding.possibilities()) == set(
+        [
+            (erelay1_source, esink, 1),
+            (erelay1_source, ENode(None, nsource), 1),
+            (erelay1_source, ENode(None, nsink), 1),
+            (erelay1_source, ENode(None, nrelay2), 1),
+        ]
+    )
 
     assert embedding.take_action(erelay1_source, ENode(None, nrelay2), 1)
     erelay2_source = ENode(None, nrelay2, predecessor=erelay1_source)
-    assert set(embedding.possibilities()) == set([
-        (erelay2_source, esink, 2),
-        (erelay2_source, ENode(None, nsource), 2),
-        (erelay2_source, ENode(None, nsink), 2),
-        (erelay2_source, ENode(None, nrelay1), 2),
-    ])
+    assert set(embedding.possibilities()) == set(
+        [
+            (erelay2_source, esink, 2),
+            (erelay2_source, ENode(None, nsource), 2),
+            (erelay2_source, ENode(None, nsink), 2),
+            (erelay2_source, ENode(None, nrelay1), 2),
+        ]
+    )
