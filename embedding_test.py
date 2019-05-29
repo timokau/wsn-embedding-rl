@@ -716,3 +716,53 @@ def test_relays_correctly_wired_up():
             (erelay2_source, ENode(None, nrelay1), 2),
         ]
     )
+
+
+def test_outlinks_limited():
+    """
+    Tests that the number of possible outlinks is limited by the number
+    of outlinks to embed for that block.
+    """
+    # raise Exception()
+    infra = InfrastructureNetwork()
+
+    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=1, name="nso")
+    nrelay = infra.add_intermediate(
+        pos=(1, 0), transmit_power_dbm=1, name="nr"
+    )
+    # The sink is way out of reach, embedding is not possible
+    nsink = infra.set_sink(pos=(1, 1), transmit_power_dbm=1, name="nsi")
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(overlay.add_source(name="bso"), nsource)
+    esink = ENode(overlay.set_sink(name="bsi"), nsink)
+
+    overlay.add_link(esource.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[(esource.block, esource.node)],
+        sinrth=2.0,
+    )
+
+    assert embedding.take_action(esource, ENode(None, nrelay), 0)
+
+    print(embedding.possibilities())
+    possibilities_from_source = [
+        (source, target, timeslot)
+        for (source, target, timeslot) in embedding.possibilities()
+        if source == esource
+    ]
+    # the source block has one outgoing edge, one outlink is already
+    # embedded (although the link is not embedded completely)
+    assert len(possibilities_from_source) == 0
+
+    possibilities_from_relay = [
+        (source, target, timeslot)
+        for (source, target, timeslot) in embedding.possibilities()
+        if source == ENode(None, nrelay, esource)
+    ]
+    # yet the link can be continued from the relay
+    assert len(possibilities_from_relay) > 0
