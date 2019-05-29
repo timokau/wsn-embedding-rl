@@ -700,7 +700,6 @@ def test_relays_correctly_wired_up():
     assert set(embedding.possibilities()) == set(
         [
             (erelay1_source, esink, 1),
-            (erelay1_source, ENode(None, nsource), 1),
             (erelay1_source, ENode(None, nsink), 1),
             (erelay1_source, ENode(None, nrelay2), 1),
         ]
@@ -709,12 +708,7 @@ def test_relays_correctly_wired_up():
     assert embedding.take_action(erelay1_source, ENode(None, nrelay2), 1)
     erelay2_source = ENode(None, nrelay2, predecessor=erelay1_source)
     assert set(embedding.possibilities()) == set(
-        [
-            (erelay2_source, esink, 2),
-            (erelay2_source, ENode(None, nsource), 2),
-            (erelay2_source, ENode(None, nsink), 2),
-            (erelay2_source, ENode(None, nrelay1), 2),
-        ]
+        [(erelay2_source, esink, 2), (erelay2_source, ENode(None, nsink), 2)]
     )
 
 
@@ -766,3 +760,44 @@ def test_outlinks_limited():
     ]
     # yet the link can be continued from the relay
     assert len(possibilities_from_relay) > 0
+
+
+def test_link_with_loop_not_possible():
+    """
+    Tests that it is not possible to go in a loop within a link. While
+    this is not necessarily wrong, it is useless and makes it harder to
+    determine when the embedding is unsolvable.
+    """
+    # raise Exception()
+    infra = InfrastructureNetwork()
+
+    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=1, name="nso")
+    nrelay = infra.add_intermediate(
+        pos=(10, 0), transmit_power_dbm=1, name="nr"
+    )
+    # The sink is way out of reach, embedding is not possible
+    nsink = infra.set_sink(pos=(3000000, 0), transmit_power_dbm=1, name="nsi")
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(overlay.add_source(name="bso"), nsource)
+    esink = ENode(overlay.set_sink(name="bsi"), nsink)
+
+    overlay.add_link(esource.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[(esource.block, esource.node)],
+        sinrth=2.0,
+    )
+
+    assert embedding.take_action(esource, ENode(None, nrelay), 0)
+
+    # should not be possible to go back within the same link
+    back_connections = [
+        (source, target, timeslot)
+        for (source, target, timeslot) in embedding.possibilities()
+        if source == ENode(None, nrelay, esource) and target.node == nsource
+    ]
+    assert len(back_connections) == 0
