@@ -248,18 +248,7 @@ class PartialEmbedding:
 
         return num_out_links_to_embed > embedded
 
-    def _would_form_circle_within_link(self, source, target):
-        # pylint: disable=no-self-use
-        tnode = target.node
-        while source is not None:
-            if source.node == tnode:
-                return True
-            source = source.predecessor
-        return False
-
     def _valid_by_itself(self, source, target, timeslot):
-        if self._would_form_circle_within_link(source, target):
-            return False
         if not self._sinr_valid(source, target, timeslot):
             return False
         if not self._unembedded_outlinks_left(source):
