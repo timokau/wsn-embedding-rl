@@ -249,8 +249,20 @@ class PartialEmbedding:
 
         return num_out_links_to_embed > embedded
 
+    def _completes_already_embedded_link(self, source, target):
+        """Checks if a new link would doubly embed a link"""
+        if target.relay or source.acting_as is None:
+            return False
+
+        if (source.acting_as, target.acting_as) in self.embedded_links:
+            return True
+
+        return False
+
     def _valid_by_itself(self, source, target, timeslot):
         if not self._sinr_valid(source, target, timeslot):
+            return False
+        if self._completes_already_embedded_link(source, target):
             return False
         if not self._unembedded_outlinks_left(source):
             return False

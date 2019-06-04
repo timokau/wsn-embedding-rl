@@ -859,3 +859,42 @@ def test_more_blocks_than_nodes_solvable():
     )
 
     assert embedding.is_solvable()
+
+
+def test_link_edges_cannot_be_embedded_twice():
+    """Tests that edges completing a link that is already embedded are
+    removed or not even added when creating a new timestep"""
+    infra = InfrastructureNetwork()
+    nso = infra.add_source(pos=(0, 0), transmit_power_dbm=30, name="nso")
+    nsi = infra.set_sink(pos=(2, 0), transmit_power_dbm=30, name="nsi")
+    nint = infra.add_intermediate(
+        pos=(1, -1), transmit_power_dbm=30, name="nint"
+    )
+
+    overlay = OverlayNetwork()
+    bso = overlay.add_source(name="bso")
+    bsi = overlay.set_sink(name="bsi")
+    bint = overlay.add_intermediate("bint")
+
+    overlay.add_link(bso, bsi)
+    overlay.add_link(bso, bint)
+    overlay.add_link(bint, bsi)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
+    )
+
+    eso = ENode(bso, nso)
+    esi = ENode(bsi, nsi)
+    # now the link from source to sink is already embedded, only the one
+    # from source to intermediate should be left
+    assert embedding.take_action(eso, esi, 0)
+
+    # so embedding it again should not be possible
+    assert not embedding.take_action(ENode(bso, nso), ENode(bsi, nsi), 1)
+
+    # and not via relay either
+    assert embedding.take_action(eso, ENode(None, nint), 0)
+    assert not embedding.take_action(
+        ENode(None, nint, eso), ENode(bsi, nsi), 1
+    )
