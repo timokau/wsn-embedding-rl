@@ -314,6 +314,16 @@ class PartialEmbedding:
             return False
         return True
 
+    def _remove_other_options_for(self, block):
+        """Removes not-chosen options for a block"""
+        new_by_block = set()
+        for node in self._by_block[block]:
+            if not self.graph.node[node]["chosen"]:
+                self.graph.remove_node(node)
+            else:
+                new_by_block.add(node)
+        self._by_block[block] = new_by_block
+
     def _remove_unnecessary_links(self):
         """Removes links that are no longer necessary because they have
         already been embedded in another timeslot"""
@@ -446,7 +456,10 @@ class PartialEmbedding:
             block=target_block, node=target_node, predecessor=source
         )
 
+        newly_embedded = not sink.relay and not self.graph.node[sink]["chosen"]
         self.add_node(new_enode, chosen=True)
+        if newly_embedded:
+            self._remove_other_options_for(new_enode.block)
         self.graph.add_edge(
             source, new_enode, chosen=True, timeslot=timeslot, key=timeslot
         )

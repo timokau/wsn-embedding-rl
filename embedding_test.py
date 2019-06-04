@@ -1094,3 +1094,50 @@ def test_not_possible_to_take_same_relay_twice():
     assert embedding.take_action(eso, ENode(None, nsi), 0)
 
     assert ENode(None, nsi) not in possible_targets_from(eso)
+
+
+def test_block_embedding_is_unique():
+    """Tests that other embedding options are removed once one of them
+    is chosen"""
+    infra = InfrastructureNetwork()
+
+    nso1 = infra.add_source(pos=(0, 0), transmit_power_dbm=26, name="nso1")
+    nso2 = infra.add_source(pos=(2, 0), transmit_power_dbm=26, name="nso2")
+    _nsi = infra.set_sink(pos=(0, 1), transmit_power_dbm=16, name="nsi")
+    n1 = infra.add_intermediate(pos=(1, 0), transmit_power_dbm=16, name="n1")
+    _n2 = infra.add_intermediate(pos=(1, 1), transmit_power_dbm=16, name="n2")
+
+    overlay = OverlayNetwork()
+
+    bso1 = overlay.add_source(name="bso1")
+    bso2 = overlay.add_source(name="bso2")
+    binterm = overlay.add_intermediate(name="binterm")
+    bsi = overlay.set_sink(name="bsi")
+
+    overlay.add_link(bso1, binterm)
+    # there are multiple in-edges to binterm, which could lead to
+    # multiple different embeddings
+    overlay.add_link(bso2, binterm)
+    overlay.add_link(binterm, bsi)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)], sinrth=2.0
+    )
+
+    eso1 = ENode(bso1, nso1)
+
+    def embeddings_for_block(block):
+        count = 0
+        for node in embedding.graph.nodes():
+            if node.block == block:
+                count += 1
+        return count
+
+    # could embed binterm in multiple blocks
+    assert embeddings_for_block(binterm) > 1
+
+    # decide for one embedding
+    assert embedding.take_action(eso1, ENode(binterm, n1), 0)
+
+    # other options are removed
+    assert embeddings_for_block(binterm) == 1
