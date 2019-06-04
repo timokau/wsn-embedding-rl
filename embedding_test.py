@@ -316,12 +316,12 @@ def test_all_viable_options_offered():
     )
 
     # source1 can connect to the intermediate, which could be embedded
-    # in either of two nodes (2). It could also connect to any other
-    # node as a relay (4) -> 6
-    # source2 can connect to the sink (1) or the other source (1). It
-    # could also connect to any other node as a relay (4) -> 6
-    # No timeslot is used yet, so there is just one timeslot option.
-    assert len(embedding.possibilities()) == 6 + 6
+    # in any node (5). It could also connect to any other node as a
+    # relay (4) -> 9. source2 can connect to the sink (1) or the other
+    # source (1).  It could also connect to any other node as a relay
+    # (4) -> 6 No timeslot is used yet, so there is just one timeslot
+    # option.
+    assert len(embedding.possibilities()) == 9 + 6
 
 
 def test_timeslots_dynamically_created():
@@ -766,3 +766,39 @@ def test_outlinks_limited():
     ]
     # yet the link can be continued from the relay
     assert len(possibilities_from_relay) > 0
+
+
+def test_loop_within_infra_possible():
+    """
+    Tests that a loop within the infrastructure is always possible and
+    does not interfere with other connections. This can be used to embed
+    multiple consecutive blocks within one node.
+    """
+    infra = InfrastructureNetwork()
+
+    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=30, name="nso")
+    nsink = infra.set_sink(pos=(1, 0), transmit_power_dbm=30, name="nsi")
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(overlay.add_source(name="bso"), nsource)
+    einterm = ENode(overlay.add_intermediate(name="bin"), nsource)
+    esink = ENode(overlay.set_sink(name="bsi"), nsink)
+
+    overlay.add_link(esource.block, einterm.block)
+    overlay.add_link(einterm.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[(esource.block, esource.node)],
+        sinrth=2.0,
+    )
+
+    sinr_before = embedding.known_sinr(nsource, nsink, 0)
+    assert embedding.take_action(esource, einterm, 0)
+    sinr_after = embedding.known_sinr(nsource, nsink, 0)
+    assert sinr_before == sinr_after
+
+    assert embedding.take_action(einterm, esink, 0)
+    assert embedding.is_complete()

@@ -111,7 +111,7 @@ class PartialEmbedding:
 
     def _add_possible_intermediate_embeddings(self):
         for block in self.overlay.intermediates:
-            for node in self.infra.intermediates:
+            for node in self.infra.graph.nodes():
                 self.add_node(ENode(block, node))
 
     def _embed_sources(self, source_mapping: List[Tuple[str, str]]):
