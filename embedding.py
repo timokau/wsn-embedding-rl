@@ -281,10 +281,23 @@ class PartialEmbedding:
 
         return False
 
+    def _link_already_taken(self, source, target):
+        for (u, v, d) in self.graph.edges(data=True):
+            if (
+                d["chosen"]
+                and u == source
+                and v.block == target.block
+                and v.node == target.node
+            ):
+                return True
+        return False
+
     def _link_necessary(self, source, target):
         if self._completes_already_embedded_link(source, target):
             return False
         if not self._unembedded_outlinks_left(source):
+            return False
+        if self._link_already_taken(source, target):
             return False
         return True
 

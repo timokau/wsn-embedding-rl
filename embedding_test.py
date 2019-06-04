@@ -1058,3 +1058,39 @@ def test_remaining_outlinks_with_relays():
 
     # but the newly created relay still has options
     assert len(possible_targets_from(erelay1)) > 0
+
+
+def test_not_possible_to_take_same_relay_twice():
+    """Tests that the same relay cannot be taken twice. Instead,
+    multiple outlinks from that relay can be chosen."""
+    infra = InfrastructureNetwork()
+
+    nso = infra.add_source(pos=(8, 2), transmit_power_dbm=26, name="nso")
+    nsi = infra.set_sink(pos=(6, 1), transmit_power_dbm=16, name="nsi")
+
+    overlay = OverlayNetwork()
+
+    bso = overlay.add_source(name="bso")
+    binterm = overlay.add_intermediate(name="binterm")
+    bsi = overlay.set_sink(name="bsi")
+
+    overlay.add_link(bso, bsi)
+    # make sure two out links for bso exist so that taking the same
+    # relay twice would even be an option
+    overlay.add_link(bso, binterm)
+    overlay.add_link(binterm, bsi)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
+    )
+
+    eso = ENode(bso, nso)
+
+    def possible_targets_from(source):
+        return {
+            pos[1] for pos in embedding.possibilities() if pos[0] == source
+        }
+
+    assert embedding.take_action(eso, ENode(None, nsi), 0)
+
+    assert ENode(None, nsi) not in possible_targets_from(eso)
