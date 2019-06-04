@@ -90,6 +90,26 @@ class InfrastructureNetwork:
         self._last_id += 1
         return f"N{self._last_id}"
 
+    def __str__(self):
+        result = "Infrastructure with:\n"
+        result += f"- {len(self.sources)} sources:\n"
+        for source in self.sources:
+            s = self._node_to_verbose_str(source)
+            result += f"  - {s}\n"
+        result += f"- {len(self.intermediates)} intermediates:\n"
+        for intermediate in self.intermediates:
+            i = self._node_to_verbose_str(intermediate)
+            result += f"  - {i}\n"
+        result += "- one sink:\n"
+        s = self._node_to_verbose_str(self.sink)
+        result += f"  - {s}\n"
+        return result
+
+    def _node_to_verbose_str(self, node):
+        pos = self.graph.nodes[node]["pos"]
+        transmit_power_dbm = self.graph.nodes[node]["transmit_power_dbm"]
+        return f"{node} at ({pos[0]}, {pos[1]}), {transmit_power_dbm}dBm"
+
 
 def random_infrastructure(
     rand, min_nodes=2, max_nodes=10, num_sources=1, width=10, height=10

@@ -67,6 +67,28 @@ class OverlayNetwork:
         """Adds a link between two blocks in the overlay network"""
         self.graph.add_edge(source, sink)
 
+    def _block_to_verbose_str(self, block):
+        out_edge_strings = []
+        for (_, v) in self.graph.out_edges(nbunch=[block]):
+            out_edge_strings.append(f"-> {v}")
+        oe = ", ".join(out_edge_strings)
+        return f"{block} ({oe})"
+
+    def __str__(self):
+        result = "Overlay with:\n"
+        result += f"- {len(self.sources)} sources:\n"
+        for source in self.sources:
+            s = self._block_to_verbose_str(source)
+            result += f"  - {s}\n"
+        result += f"- {len(self.intermediates)} intermediates:\n"
+        for intermediate in self.intermediates:
+            i = self._block_to_verbose_str(intermediate)
+            result += f"  - {i}\n"
+        result += f"- one sink:\n"
+        s = self._block_to_verbose_str(self.sink)
+        result += f"  - {s}\n"
+        return result
+
 
 def random_overlay(
     rand,

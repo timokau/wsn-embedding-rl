@@ -458,6 +458,12 @@ class PartialEmbedding:
                 return False
         return True
 
+    def __str__(self):
+        result = "Embedding with:\n"
+        result += self.infra.__str__()
+        result += self.overlay.__str__()
+        return result
+
 
 def draw_embedding(
     embedding: PartialEmbedding,
