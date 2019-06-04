@@ -802,3 +802,60 @@ def test_loop_within_infra_possible():
 
     assert embedding.take_action(einterm, esink, 0)
     assert embedding.is_complete()
+
+
+def test_big_distance_not_solvable():
+    """Tests that an embedding is not solvable if the sink is not
+    reachable from a source"""
+    infra = InfrastructureNetwork()
+
+    # those nodes cannot possibly reach each other
+    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=1, name="nso")
+    nsink = infra.set_sink(pos=(100000, 0), transmit_power_dbm=1, name="nsi")
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(overlay.add_source(name="bso"), nsource)
+    esink = ENode(overlay.set_sink(name="bsi"), nsink)
+
+    # so this link cannot be embedded
+    overlay.add_link(esource.block, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[(esource.block, esource.node)],
+        sinrth=2.0,
+    )
+
+    assert not embedding.is_solvable()
+
+
+def test_more_blocks_than_nodes_solvable():
+    """Tests that an embedding with many blocks but only two nodes is
+    solvable as long as those two nodes can reach each other"""
+
+    infra = InfrastructureNetwork()
+
+    # those nodes cannot possibly reach each other
+    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=1, name="nso")
+    nsink = infra.set_sink(pos=(1, 0), transmit_power_dbm=30, name="nsi")
+
+    overlay = OverlayNetwork()
+
+    esource = ENode(overlay.add_source(name="bso"), nsource)
+    binterm = overlay.add_intermediate(name="bin")
+    esink = ENode(overlay.set_sink(name="bsi"), nsink)
+
+    # one link will just have to be embedded within a node
+    overlay.add_link(esource.block, binterm)
+    overlay.add_link(binterm, esink.block)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[(esource.block, esource.node)],
+        sinrth=2.0,
+    )
+
+    assert embedding.is_solvable()

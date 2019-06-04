@@ -10,6 +10,15 @@ from embedding import PartialEmbedding
 
 
 def random_embedding(max_embedding_nodes=32, rand=np.random):
+    """Generate a random embedding that is guaranteed to be solvable"""
+    solvable = False
+    while not solvable:
+        result = _random_embedding(max_embedding_nodes, rand)
+        solvable = result.is_solvable()
+    return result
+
+
+def _random_embedding(max_embedding_nodes=32, rand=np.random):
     """Generate matching random infrastructure + overlay + embedding"""
     infra = random_infrastructure(
         rand, min_nodes=3, max_nodes=max_embedding_nodes / 3, num_sources=2

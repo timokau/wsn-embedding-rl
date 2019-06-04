@@ -3,6 +3,7 @@
 from typing import List, Tuple, Iterable
 
 import networkx as nx
+from networkx.algorithms.shortest_paths.generic import has_path
 from matplotlib import pyplot as plt
 
 import wsignal
@@ -424,6 +425,18 @@ class PartialEmbedding:
         edges = self.graph.edges(keys=True, data=True)
         chosen_edges = {(u, v, k) for (u, v, k, d) in edges if d["chosen"]}
         return self.graph.edge_subgraph(chosen_edges)
+
+    def is_solvable(self):
+        """Determines weather there is at least one valid path from each
+        source to the sink (assuming no interfereing communications for each
+        transmission, i.e. infinite timesteps)."""
+        esink = list(self._by_block[self.overlay.sink])[0]
+        for osource in self.overlay.sources:
+            esource = list(self._by_block[osource])[0]
+            if not has_path(self.graph, esource, esink):
+                return False
+
+        return True
 
     def is_complete(self):
         """Determines if all blocks and links are embedded"""
