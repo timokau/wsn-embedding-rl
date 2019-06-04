@@ -94,6 +94,17 @@ class PartialEmbedding:
 
         self._build_possibilities_graph(source_mapping)
 
+    def options(self):
+        """Returns a list of not yet options, which may or may not be
+        possible yet"""
+        out_edges = self.graph.out_edges(data=True)
+        options = [
+            (source, target, data["timeslot"])
+            for (source, target, data) in out_edges
+            if not data["chosen"]
+        ]
+        return options
+
     def possibilities(self):
         """Returns a list of possible actions (edges)"""
         is_chosen = lambda node: self.graph.nodes[node]["chosen"]
@@ -259,9 +270,7 @@ class PartialEmbedding:
 
         return False
 
-    def _valid_by_itself(self, source, target, timeslot):
-        if not self._sinr_valid(source, target, timeslot):
-            return False
+    def _link_necessary(self, source, target):
         if self._completes_already_embedded_link(source, target):
             return False
         if not self._unembedded_outlinks_left(source):
@@ -269,24 +278,34 @@ class PartialEmbedding:
         return True
 
     def _link_feasible(self, source, target, timeslot):
-        if not self._valid_by_itself(source, target, timeslot):
+        return self._link_feasible_in_timeslot(
+            source, target, timeslot
+        ) and self._link_necessary(source, target)
+
+    def _link_feasible_in_timeslot(self, source, target, timeslot):
+        if not self._sinr_valid(source, target, timeslot):
             return False
 
         if self._invalidates_chosen(source, timeslot):
             return False
         return True
 
-    def _remove_infeasible_links(self, timeslot):
-        for (source, target, link_ts) in self.possibilities():
+    def _remove_unnecessary_links(self):
+        """Removes links that are no longer necessary because they have
+        already been embedded in another timeslot"""
+        for (source, target, link_ts) in self.options():
+            if not self._link_necessary(source, target):
+                self.remove_link(source, target, link_ts)
+
+    def _remove_links_infeasible_in(self, timeslot):
+        """Removes links that are no longer feasible within a
+        timeslot"""
+        for (source, target, link_ts) in self.options():
             if link_ts != timeslot:
                 continue
 
-            if not self._link_feasible(source, target, link_ts):
+            if not self._link_feasible_in_timeslot(source, target, link_ts):
                 self.remove_link(source, target, link_ts)
-
-    def readjust(self, timeslot):
-        """Removes now infeasible actions"""
-        self._remove_infeasible_links(timeslot)
 
     def _all_known_transmissions_at(self, timeslot):
         return self._transmissions_at.get(timeslot, [])
@@ -427,7 +446,8 @@ class PartialEmbedding:
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
 
-        self.readjust(timeslot)
+        self._remove_links_infeasible_in(timeslot)
+        self._remove_unnecessary_links()
         return True
 
     def chosen_subgraph(self):

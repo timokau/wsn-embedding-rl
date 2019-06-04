@@ -898,3 +898,60 @@ def test_link_edges_cannot_be_embedded_twice():
     assert not embedding.take_action(
         ENode(None, nint, eso), ENode(bsi, nsi), 1
     )
+
+
+def test_unnecessary_links_removed_in_other_timeslots():
+    """
+    Tests that links in other timeslots are removed if they are embedded
+    in one timeslot.
+    """
+    infra = InfrastructureNetwork()
+
+    nfaraway_1 = infra.add_source(
+        pos=(999999998, 99999999), transmit_power_dbm=5, name="nfaraway_1"
+    )
+    nfaraway_2 = infra.add_intermediate(
+        pos=(999999999, 99999999), transmit_power_dbm=5, name="nfaraway_2"
+    )
+
+    nsi = infra.set_sink(pos=(9, 5), transmit_power_dbm=12, name="nsi")
+    nso = infra.add_source(pos=(8, 3), transmit_power_dbm=3, name="nso")
+
+    overlay = OverlayNetwork()
+
+    bsi = overlay.set_sink(name="bsi")
+    bso = overlay.add_source(name="bso")
+    bfaraway_1 = overlay.add_source(name="bfaraway_1")
+    bfaraway_2 = overlay.add_intermediate(name="bfaraway_2")
+
+    overlay.add_link(bso, bsi)
+    overlay.add_link(bfaraway_1, bfaraway_2)
+    # just to make it correct
+    overlay.add_link(bfaraway_2, bsi)
+
+    embedding = PartialEmbedding(
+        infra,
+        overlay,
+        source_mapping=[(bso, nso), (bfaraway_1, nfaraway_1)],
+        sinrth=2.0,
+    )
+
+    esi = ENode(bsi, nsi)
+    eso = ENode(bso, nso)
+    efaraway_1 = ENode(bfaraway_1, nfaraway_1)
+    efaraway_2 = ENode(bfaraway_2, nfaraway_2)
+
+    # make sure a second timeslot is created
+    assert embedding.take_action(efaraway_1, efaraway_2, 0)
+
+    # make sure embedding is possible in ts1
+    assert (eso, esi, 1) in embedding.possibilities()
+
+    # embed the link in ts 0
+    assert embedding.take_action(eso, esi, 0)
+
+    # now no embedding in another timeslot should be possible anymore
+    possible_outlinks_from_eso = [
+        pos for pos in embedding.possibilities() if pos[0] == eso
+    ]
+    assert len(possible_outlinks_from_eso) == 0
