@@ -139,7 +139,10 @@ class PartialEmbedding:
         for (source_block, sink_block) in self.overlay.links():
             for source_embedding in self._by_block.get(source_block, set()):
                 for sink_embedding in self._by_block.get(sink_block, set()):
-                    self.add_edge(source_embedding, sink_embedding, timeslot)
+                    if not sink_embedding.relay:
+                        self.add_edge(
+                            source_embedding, sink_embedding, timeslot
+                        )
 
     def _add_relay_nodes(self):
         for node in self.infra.nodes():

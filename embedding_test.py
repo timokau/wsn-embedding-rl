@@ -955,3 +955,44 @@ def test_unnecessary_links_removed_in_other_timeslots():
         pos for pos in embedding.possibilities() if pos[0] == eso
     ]
     assert len(possible_outlinks_from_eso) == 0
+
+
+def test_used_relays_not_for_other_nodes():
+    """Tests that already used relay nodes are not possible actions for
+    other nodes"""
+    infra = InfrastructureNetwork()
+
+    nso1 = infra.add_source(pos=(0, 0), transmit_power_dbm=30, name="nso1")
+    nrelay = infra.add_intermediate(
+        pos=(1, -1), transmit_power_dbm=30, name="nrelay"
+    )
+    nso2 = infra.add_source(pos=(1, 1), transmit_power_dbm=30, name="nso2")
+    infra.set_sink(pos=(2, 0), transmit_power_dbm=30, name="nsink")
+
+    overlay = OverlayNetwork()
+
+    bso1 = overlay.add_source(name="bso1")
+    bso2 = overlay.add_source(name="bso2")
+    bsi = overlay.set_sink(name="bsi")
+
+    overlay.add_link(bso1, bsi)
+    overlay.add_link(bso2, bso1)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)], sinrth=2.0
+    )
+
+    eso1 = ENode(bso1, nso1)
+
+    # go over relay, now a relay Node (bso1)-nrelay exists
+    assert embedding.take_action(eso1, ENode(None, nrelay), 0)
+
+    possible_in_actions_to_relay = [
+        pos
+        for pos in embedding.possibilities()
+        if pos[1] == ENode(None, nrelay, eso1)
+    ]
+
+    # no other block should be able to go over that particular relay
+    # node
+    assert len(possible_in_actions_to_relay) == 0
