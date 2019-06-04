@@ -1,6 +1,7 @@
 """Model of wireless overlay networks"""
 
 from typing import List, Tuple, Iterable
+from collections import defaultdict
 
 import networkx as nx
 from networkx.algorithms.shortest_paths.generic import has_path
@@ -88,6 +89,7 @@ class PartialEmbedding:
         # just for ease of access
         self._relays = set()
         self._by_block = dict()
+        self._num_outlinks_embedded = defaultdict(int)
         self._transmissions_at = dict()
         self._known_sinr_cache = dict()
         self.embedded_links = []
@@ -255,7 +257,13 @@ class PartialEmbedding:
 
     def _unembedded_outlinks_left(self, enode):
         """Checks if there are any unembedded outgoing links left"""
-        embedded = self.graph.nodes[enode].get("chosen_out", 0)
+        embedded = self._num_outlinks_embedded[enode.acting_as]
+        if enode.relay:
+            # a relay was already counted, but is part of a not yet
+            # completed link. It should not count at the tip of the
+            # unfinished link
+            if not self.graph.nodes[enode].get("has_out", False):
+                embedded -= 1
 
         num_out_links_to_embed = len(
             self.overlay.graph.out_edges(nbunch=[enode.acting_as])
@@ -401,6 +409,7 @@ class PartialEmbedding:
 
     def take_action(self, source: ENode, sink: ENode, timeslot: int):
         """Take an action represented by an edge and update the graph"""
+        # pylint: disable=too-many-branches
         if (source, sink, timeslot) not in self.possibilities():
             return False
 
@@ -430,8 +439,21 @@ class PartialEmbedding:
         )
         if not new_enode.relay:
             self.embedded_links += [(source.acting_as, new_enode.acting_as)]
-        before = self.graph.nodes[source].get("chosen_out", 0)
-        self.graph.nodes[source]["chosen_out"] = before + 1
+
+        if not source.relay:
+            # we count this as an embedded outlink, even if the link is
+            # not completed yet. Once we have chosen the beginning of a
+            # link, it does not make sense to begin the link in another
+            # way too.
+            self._num_outlinks_embedded[source.block] += 1
+        else:
+            # if the link is originating as a relay, the link was
+            # already counted once. It is only counted again if the path
+            # forks, i.e. this is the second outlink of the relay.
+            if self.graph.nodes[source].get("has_out", False):
+                self._num_outlinks_embedded[source.block] += 1
+            self.graph.nodes[source]["has_out"] = True
+
         self._known_sinr_cache[timeslot] = dict()
         self._transmissions_at[timeslot] = self._transmissions_at.get(
             timeslot, []
