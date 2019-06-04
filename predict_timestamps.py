@@ -22,7 +22,7 @@ from graph_nets import utils_tf, utils_np
 from graph_nets.demos import models
 from joblib import Parallel, delayed
 
-from generator_visualization import random_embedding, get_random_action
+from generator import random_embedding, get_random_action
 
 # cache generated samples to speed up experimentation (although that of
 # course can introduce overfitting when doing too much experimentation)

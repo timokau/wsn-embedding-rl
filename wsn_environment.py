@@ -17,7 +17,7 @@ from rl_coach.environments.environment import (
     EnvironmentParameters,
 )
 from rl_coach.filters.filter import NoInputFilter, NoOutputFilter
-from generator_visualization import random_embedding
+from generator import random_embedding
 
 
 class DynamicDiscreteActionSpace(DiscreteActionSpace):
