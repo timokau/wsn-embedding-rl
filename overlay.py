@@ -119,7 +119,7 @@ def random_overlay(
     # randomly add links
     for source in overlay.graph.nodes():
         for sink in overlay.graph.nodes():
-            if rand.random() < pairwise_connection_prob:
+            if sink != source and rand.random() < pairwise_connection_prob:
                 overlay.add_link(source, sink)
 
     # add links necessary to have each block on a path from a source to
