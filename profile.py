@@ -14,21 +14,25 @@ def main(size=20, time_seconds=60):
         before = time.time()
         embedding = random_embedding(size)
         while True:
-            complete = embedding.is_complete()
-            action = get_random_action(embedding)
-            if (complete and action is not None) or (
-                not complete and action is None
-            ):
-                print(embedding)
-                for action in action_list[:100]:
-                    print(action)
-                raise Exception("Problematic embedding")
+            try:
+                complete = embedding.is_complete()
+                action = get_random_action(embedding)
+                if (complete and action is not None) or (
+                    not complete and action is None
+                ):
+                    raise Exception("Problematic embedding")
 
-            if action is None:
-                break
-            action_list.append(action)
-            embedding.take_action(*action)
-            elapsed_ms = round((time.time() - before) * 1000, 2)
+                if action is None:
+                    break
+                action_list.append(action)
+                embedding.take_action(*action)
+                elapsed_ms = round((time.time() - before) * 1000, 2)
+            except Exception as e:  # pylint:disable=broad-except
+                print(e)
+                print(embedding)
+                for action in action_list[:50]:
+                    print(action)
+                return
         actions = len(action_list)
         per_action = round(elapsed_ms / actions, 2)
         print(f"{elapsed_ms}ms ({actions}, {per_action}ms)")
@@ -46,4 +50,5 @@ def profile(size, time_seconds=60):
 
 
 if __name__ == "__main__":
-    profile(50, 600)
+    main(20, 99999999)
+    # profile(20, 600)
