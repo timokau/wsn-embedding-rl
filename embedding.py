@@ -180,11 +180,6 @@ class PartialEmbedding:
         if not self._link_feasible(source, sink, timeslot):
             self.remove_link(source, sink, timeslot)
 
-    def remove_edges_from(self, source: ENode):
-        """Removes all edges originating from source"""
-        to_remove = list(self.graph.out_edges(nbunch=[source], keys=True))
-        self.graph.remove_edges_from(to_remove)
-
     def remove_edges_between(self, source: ENode, sink: ENode):
         """Removes all edges between two nodes in the multigraph"""
         while True:
@@ -437,8 +432,6 @@ class PartialEmbedding:
             return False
 
         self.remove_edges_between(source, sink)
-        if source.relay:
-            self.remove_edges_from(source)
 
         if not sink.relay:
             originating = source
