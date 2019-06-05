@@ -300,6 +300,14 @@ class PartialEmbedding:
             return False
         return True
 
+    def _remove_other_outlinks_of(self, enode):
+        """Removes not-chosen outlinks for an enode"""
+        for (u, v, k, d) in list(
+            self.graph.out_edges(nbunch=[enode], keys=True, data=True)
+        ):
+            if not d["chosen"]:
+                self.remove_link(u, v, k)
+
     def _remove_other_options_for(self, block):
         """Removes not-chosen options for a block"""
         new_by_block = set()
@@ -322,9 +330,7 @@ class PartialEmbedding:
         """Removes links that are no longer necessary because they have
         already been embedded in another timeslot"""
         for (source, target, link_ts) in self.options():
-            if self._completes_already_embedded_link(
-                source, target
-            ) or not self._unembedded_outlinks_left(source):
+            if self._completes_already_embedded_link(source, target):
                 self.remove_link(source, target, link_ts)
 
     def _remove_links_infeasible_in(self, timeslot):
@@ -490,6 +496,9 @@ class PartialEmbedding:
             self.add_timeslot()
 
         self._remove_links_between(source, sink)
+        for enode in self._by_block[source.acting_as]:
+            if not self._unembedded_outlinks_left(enode):
+                self._remove_other_outlinks_of(enode)
         self._remove_links_infeasible_in(timeslot)
         self._remove_unnecessary_links()
         return True
