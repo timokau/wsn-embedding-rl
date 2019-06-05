@@ -310,11 +310,21 @@ class PartialEmbedding:
                 new_by_block.add(node)
         self._by_block[block] = new_by_block
 
+    def _remove_links_between(self, source, target):
+        """Removes all remaining unchosen links between two ENodes"""
+        for timeslot in range(self.used_timeslots):
+            if self.graph.has_edge(source, target, timeslot):
+                chosen = self.graph.edges[source, target, timeslot]["chosen"]
+                if not chosen:
+                    self.remove_link(source, target, timeslot)
+
     def _remove_unnecessary_links(self):
         """Removes links that are no longer necessary because they have
         already been embedded in another timeslot"""
         for (source, target, link_ts) in self.options():
-            if not self._link_necessary(source, target):
+            if self._completes_already_embedded_link(
+                source, target
+            ) or not self._unembedded_outlinks_left(source):
                 self.remove_link(source, target, link_ts)
 
     def _remove_links_infeasible_in(self, timeslot):
@@ -479,6 +489,7 @@ class PartialEmbedding:
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
 
+        self._remove_links_between(source, sink)
         self._remove_links_infeasible_in(timeslot)
         self._remove_unnecessary_links()
         return True
