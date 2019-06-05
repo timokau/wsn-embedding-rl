@@ -271,17 +271,21 @@ class PartialEmbedding:
 
     def _link_already_taken(self, source, target):
         possible_targets = []
+        # consider new links to relays
+        target_acting_as = target.acting_as
+        if target_acting_as is None:
+            target_acting_as = source.block
         if target.relay:
             # If the target is a relay, the exact node also depends on
             # the predecessor. Just try all options.
-            for possible_target in self._by_block[target.acting_as]:
+            for possible_target in self._by_block[target_acting_as]:
                 if (
                     possible_target.node == target.node
-                    and possible_target.block == target.block
+                    and self.graph.node[possible_target]["chosen"]
                 ):
                     possible_targets.append(possible_target)
         for enode in possible_targets:
-            for timeslot in range(self.used_timeslots):
+            for timeslot in range(self.used_timeslots + 1):
                 if self.graph.has_edge(source, enode, timeslot):
                     chosen = self.graph.edges[source, enode, timeslot][
                         "chosen"
@@ -339,7 +343,7 @@ class PartialEmbedding:
 
     def _remove_links_between(self, source, target):
         """Removes all remaining unchosen links between two ENodes"""
-        for timeslot in range(self.used_timeslots):
+        for timeslot in range(self.used_timeslots + 1):
             if self.graph.has_edge(source, target, timeslot):
                 chosen = self.graph.edges[source, target, timeslot]["chosen"]
                 if not chosen:
@@ -458,7 +462,7 @@ class PartialEmbedding:
             out_edges = self.graph.out_edges(nbunch=[originating], keys=True)
             for (u, v, k) in list(out_edges):
                 if v.block == sink.block:
-                    self.graph.remove_edge(u, v, k)
+                    self.remove_link(u, v, k)
 
         target_block = sink.block
         target_node = sink.node

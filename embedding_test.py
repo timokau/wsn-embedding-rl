@@ -1068,29 +1068,50 @@ def test_not_possible_to_take_same_relay_twice():
     nso = infra.add_source(pos=(8, 2), transmit_power_dbm=26, name="nso")
     nsi = infra.set_sink(pos=(6, 1), transmit_power_dbm=16, name="nsi")
 
+    nfaraway_1 = infra.add_source(
+        pos=(999999998, 99999999), transmit_power_dbm=5, name="nfaraway_1"
+    )
+    nfaraway_2 = infra.add_intermediate(
+        pos=(999999999, 99999999), transmit_power_dbm=5, name="nfaraway_2"
+    )
+
     overlay = OverlayNetwork()
 
     bso = overlay.add_source(name="bso")
     binterm = overlay.add_intermediate(name="binterm")
     bsi = overlay.set_sink(name="bsi")
+    bfaraway_1 = overlay.add_source(name="bfaraway_1")
+    bfaraway_2 = overlay.add_intermediate(name="bfaraway_2")
 
     overlay.add_link(bso, bsi)
     # make sure two out links for bso exist so that taking the same
     # relay twice would even be an option
     overlay.add_link(bso, binterm)
     overlay.add_link(binterm, bsi)
+    overlay.add_link(bfaraway_1, bfaraway_2)
+    # just to make it correct
+    overlay.add_link(bfaraway_2, bsi)
 
     embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
+        infra,
+        overlay,
+        source_mapping=[(bso, nso), (bfaraway_1, nfaraway_1)],
+        sinrth=2.0,
     )
 
     eso = ENode(bso, nso)
+    efaraway_1 = ENode(bfaraway_1, nfaraway_1)
+    efaraway_2 = ENode(bfaraway_2, nfaraway_2)
 
     def possible_targets_from(source):
         return {
             pos[1] for pos in embedding.possibilities() if pos[0] == source
         }
 
+    # Make sure a new timeslot is created first (to test a regression
+    # where the check only worked properly when done while creating a
+    # new timeslot)
+    assert embedding.take_action(efaraway_1, efaraway_2, 0)
     assert embedding.take_action(eso, ENode(None, nsi), 0)
 
     assert ENode(None, nsi) not in possible_targets_from(eso)
