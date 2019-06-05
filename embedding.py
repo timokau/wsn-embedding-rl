@@ -300,6 +300,13 @@ class PartialEmbedding:
             return False
         return True
 
+    def _remove_already_completed_inlinks(self, enode):
+        for (u, v, k, d) in list(
+            self.graph.in_edges(nbunch=[enode], keys=True, data=True)
+        ):
+            if not d["chosen"] and self._completes_already_embedded_link(u, v):
+                self.remove_link(u, v, k)
+
     def _remove_other_outlinks_of(self, enode):
         """Removes not-chosen outlinks for an enode"""
         for (u, v, k, d) in list(
@@ -325,13 +332,6 @@ class PartialEmbedding:
                 chosen = self.graph.edges[source, target, timeslot]["chosen"]
                 if not chosen:
                     self.remove_link(source, target, timeslot)
-
-    def _remove_unnecessary_links(self):
-        """Removes links that are no longer necessary because they have
-        already been embedded in another timeslot"""
-        for (source, target, link_ts) in self.options():
-            if self._completes_already_embedded_link(source, target):
-                self.remove_link(source, target, link_ts)
 
     def _remove_links_infeasible_in(self, timeslot):
         """Removes links that are no longer feasible within a
@@ -499,8 +499,12 @@ class PartialEmbedding:
         for enode in self._by_block[source.acting_as]:
             if not self._unembedded_outlinks_left(enode):
                 self._remove_other_outlinks_of(enode)
+        if not sink.relay:
+            # check for other options that would have completed the same
+            # link
+            for enode in self._by_block[sink.acting_as]:
+                self._remove_already_completed_inlinks(enode)
         self._remove_links_infeasible_in(timeslot)
-        self._remove_unnecessary_links()
         return True
 
     def chosen_subgraph(self):
