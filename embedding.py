@@ -268,14 +268,24 @@ class PartialEmbedding:
         return False
 
     def _link_already_taken(self, source, target):
-        for (u, v, d) in self.graph.edges(data=True):
-            if (
-                d["chosen"]
-                and u == source
-                and v.block == target.block
-                and v.node == target.node
-            ):
-                return True
+        possible_targets = []
+        if target.relay:
+            # If the target is a relay, the exact node also depends on
+            # the predecessor. Just try all options.
+            for possible_target in self._by_block[target.acting_as]:
+                if (
+                    possible_target.node == target.node
+                    and possible_target.block == target.block
+                ):
+                    possible_targets.append(possible_target)
+        for enode in possible_targets:
+            for timeslot in range(self.used_timeslots):
+                if self.graph.has_edge(source, enode, timeslot):
+                    chosen = self.graph.edges[source, enode, timeslot][
+                        "chosen"
+                    ]
+                    if chosen:
+                        return True
         return False
 
     def _link_necessary(self, source, target):
