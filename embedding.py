@@ -89,6 +89,7 @@ class PartialEmbedding:
         # just for ease of access
         self._relays = set()
         self._by_block = dict()
+        self._taken_edges = set()
         self._num_outlinks_embedded = defaultdict(int)
         self._transmissions_at = dict()
         self._known_sinr_cache = dict()
@@ -270,29 +271,7 @@ class PartialEmbedding:
         return False
 
     def _link_already_taken(self, source, target):
-        possible_targets = []
-        # consider new links to relays
-        target_acting_as = target.acting_as
-        if target_acting_as is None:
-            target_acting_as = source.block
-        if target.relay:
-            # If the target is a relay, the exact node also depends on
-            # the predecessor. Just try all options.
-            for possible_target in self._by_block[target_acting_as]:
-                if (
-                    possible_target.node == target.node
-                    and self.graph.node[possible_target]["chosen"]
-                ):
-                    possible_targets.append(possible_target)
-        for enode in possible_targets:
-            for timeslot in range(self.used_timeslots + 1):
-                if self.graph.has_edge(source, enode, timeslot):
-                    chosen = self.graph.edges[source, enode, timeslot][
-                        "chosen"
-                    ]
-                    if chosen:
-                        return True
-        return False
+        return (source, target) in self._taken_edges
 
     def _link_necessary(self, source, target):
         if self._completes_already_embedded_link(source, target):
@@ -477,6 +456,7 @@ class PartialEmbedding:
         self.graph.add_edge(
             source, new_enode, chosen=True, timeslot=timeslot, key=timeslot
         )
+        self._taken_edges.add((source, sink))
         if not new_enode.relay:
             self.embedded_links += [(source.acting_as, new_enode.acting_as)]
 
