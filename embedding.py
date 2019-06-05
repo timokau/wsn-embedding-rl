@@ -419,7 +419,9 @@ class PartialEmbedding:
 
         for (_, v) in out_edges:
             for option in self._by_block.get(v, set()):
-                self.add_edge(enode, option, timeslot)
+                if not option.relay or option.predecessor is None:
+                    # do not connect to used relays
+                    self.add_edge(enode, option, timeslot)
 
     def add_timeslot(self):
         """Adds a new timeslot as an option"""
