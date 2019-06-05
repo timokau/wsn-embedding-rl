@@ -180,16 +180,6 @@ class PartialEmbedding:
         if not self._link_feasible(source, sink, timeslot):
             self.remove_link(source, sink, timeslot)
 
-    def remove_edges_between(self, source: ENode, sink: ENode):
-        """Removes all edges between two nodes in the multigraph"""
-        while True:
-            # remove edges for all timeslots
-            try:
-                # remove one arbitrary edge between source and sink
-                self.graph.remove_edge(source, sink)
-            except nx.NetworkXError:
-                break
-
     def _add_relay_edges(self, timeslot):
         # relay nodes are fully connected to allow for arbitrary paths
         for source_node in self.infra.nodes():
@@ -431,8 +421,6 @@ class PartialEmbedding:
         # pylint: disable=too-many-branches
         if (source, sink, timeslot) not in self.possibilities():
             return False
-
-        self.remove_edges_between(source, sink)
 
         if not sink.relay:
             originating = source
