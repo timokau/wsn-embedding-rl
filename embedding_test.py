@@ -1141,3 +1141,57 @@ def test_block_embedding_is_unique():
 
     # other options are removed
     assert embeddings_for_block(binterm) == 1
+
+
+def test_unembedded_outlinks_in_forked_relays():
+    """Tests that the unembedded outlink detection works correctly in
+    forked relays (regression test)"""
+    infra = InfrastructureNetwork()
+
+    nso = infra.add_source(pos=(8, 2), transmit_power_dbm=26, name="nso")
+    nrelay1 = infra.add_intermediate(
+        pos=(9, 8), transmit_power_dbm=4, name="nrelay1"
+    )
+    nrelay2 = infra.add_intermediate(
+        pos=(10, 5), transmit_power_dbm=22, name="nrelay2"
+    )
+    nsi = infra.set_sink(pos=(6, 1), transmit_power_dbm=16, name="nsi")
+
+    overlay = OverlayNetwork()
+
+    bso = overlay.add_source(name="bso")
+    binterm = overlay.add_intermediate(name="binterm")
+    bsi = overlay.set_sink(name="bsi")
+
+    overlay.add_link(bso, binterm)
+    overlay.add_link(binterm, bsi)
+    overlay.add_link(bso, bsi)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
+    )
+
+    eso = ENode(bso, nso)
+    esi = ENode(bsi, nsi)
+
+    def possible_targets_from(source):
+        return {
+            pos[1] for pos in embedding.possibilities() if pos[0] == source
+        }
+
+    # create relay node, will act as an extension of eso
+    erelay2 = ENode(None, nrelay2, eso)
+    assert embedding.take_action(eso, ENode(None, nrelay2), 0)
+    # complete link over relay
+    assert embedding.take_action(erelay2, esi, 1)
+
+    # the relay can still be used for the second link, bso -> binterm
+    assert len(possible_targets_from(erelay2)) > 0
+
+    # fork the relay
+    assert embedding.take_action(erelay2, ENode(None, nrelay1), 2)
+
+    # both two bso outlinks are already embedded in the relay, even
+    # though the link embeddings are not finished yet. So there are no
+    # more options from the relay.
+    assert len(possible_targets_from(erelay2)) == 0

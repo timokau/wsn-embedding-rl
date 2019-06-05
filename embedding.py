@@ -471,13 +471,13 @@ class PartialEmbedding:
             # not completed yet. Once we have chosen the beginning of a
             # link, it does not make sense to begin the link in another
             # way too.
-            self._num_outlinks_embedded[source.block] += 1
+            self._num_outlinks_embedded[source.acting_as] += 1
         else:
             # if the link is originating as a relay, the link was
             # already counted once. It is only counted again if the path
             # forks, i.e. this is the second outlink of the relay.
             if self.graph.nodes[source].get("has_out", False):
-                self._num_outlinks_embedded[source.block] += 1
+                self._num_outlinks_embedded[source.acting_as] += 1
             self.graph.nodes[source]["has_out"] = True
 
         self._known_sinr_cache[timeslot] = dict()
