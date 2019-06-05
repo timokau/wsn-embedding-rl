@@ -246,7 +246,11 @@ class PartialEmbedding:
 
     def _unembedded_outlinks_left(self, enode):
         """Checks if there are any unembedded outgoing links left"""
-        embedded = self._num_outlinks_embedded[enode.acting_as]
+        block = enode.acting_as
+        if block is None:
+            return True
+
+        embedded = self._num_outlinks_embedded[block]
         if enode.relay:
             # a relay was already counted, but is part of a not yet
             # completed link. It should not count at the tip of the
@@ -254,9 +258,7 @@ class PartialEmbedding:
             if not self.graph.nodes[enode].get("has_out", False):
                 embedded -= 1
 
-        num_out_links_to_embed = len(
-            self.overlay.graph.out_edges(nbunch=[enode.acting_as])
-        )
+        num_out_links_to_embed = self.overlay.graph.out_degree(block)
 
         return num_out_links_to_embed > embedded
 
