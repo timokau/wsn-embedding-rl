@@ -230,6 +230,7 @@ class PartialEmbedding:
 
     def remove_link(self, source: ENode, sink: ENode, timeslot: int):
         """Removes a link given its source, sink and timeslot"""
+        assert not self.graph.edges[(source, sink, timeslot)]["chosen"]
         self.graph.remove_edge(source, sink, timeslot)
 
     def _invalidates_chosen(self, source, timeslot):
