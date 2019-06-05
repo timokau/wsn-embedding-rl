@@ -168,6 +168,8 @@ class PartialEmbedding:
 
     def add_edge(self, source: ENode, sink: ENode, timeslot: int):
         """Adds a possible connection to the graph if it is feasible"""
+        # make sure we don't accidentally un-choose an edge
+        assert not self.graph.has_edge(source, sink, timeslot)
         self.graph.add_edge(
             source,
             sink,
