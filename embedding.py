@@ -437,6 +437,9 @@ class PartialEmbedding:
         if (source, sink, timeslot) not in self.possibilities():
             return False
 
+        # this should never be false, that would be a bug
+        assert self._link_feasible_in_timeslot(source, sink, timeslot)
+
         if not sink.relay:
             originating = source
             while originating.relay:
