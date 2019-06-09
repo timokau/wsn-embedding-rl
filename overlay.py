@@ -33,31 +33,35 @@ class OverlayNetwork:
         """Returns all links of the overlay"""
         return self.graph.edges()
 
-    def add_source(self, name=None):
+    def add_source(self, requirement=0, name=None):
         """Adds a new source node to the overlay and returns it"""
-        block = self._add_block(name, BlockKind.source)
+        block = self._add_block(name, BlockKind.source, requirement)
         self.sources.add(block)
         return block
 
-    def add_intermediate(self, name=None):
+    def add_intermediate(self, requirement=0, name=None):
         """Adds a new intermediate node to the overlay and returns it"""
-        block = self._add_block(name, BlockKind.intermediate)
+        block = self._add_block(name, BlockKind.intermediate, requirement)
         self.intermediates.add(block)
         return block
 
-    def set_sink(self, name=None):
+    def set_sink(self, requirement=0, name=None):
         """Creates a new node, sets it as the sink node and returns it"""
-        block = self._add_block(name, BlockKind.sink)
+        block = self._add_block(name, BlockKind.sink, requirement)
         self.sink = block
         return block
 
-    def _add_block(self, name, kind: BlockKind):
+    def _add_block(self, name, kind: BlockKind, requirement):
         """Adds a block to the overlay network"""
 
         if name is None:
             name = self._generate_name()
-        self.graph.add_node(name, kind=kind)
+        self.graph.add_node(name, kind=kind, requirement=requirement)
         return name
+
+    def requirement(self, block):
+        """Returns the resource requirement of a given block"""
+        return self.graph.node[block]["requirement"]
 
     def _generate_name(self):
         self._last_id += 1
@@ -96,6 +100,7 @@ def random_overlay(
     min_blocks=2,
     max_blocks=10,
     num_sources=1,
+    mean_requirement=5,
 ):
     """Generates a randomized overlay graph."""
     # This is a complicated function, but it would only get harder to
@@ -103,18 +108,21 @@ def random_overlay(
     # pylint: disable=too-many-branches
     assert num_sources < min_blocks
 
+    def rand_requirement():
+        return rand.exponential(mean_requirement)
+
     # select a block count uniformly distributed over the given interval
     num_blocks = rand.randint(min_blocks, max_blocks + 1)
 
     overlay = OverlayNetwork()
 
-    overlay.set_sink()
+    overlay.set_sink(requirement=rand_requirement())
 
     for _ in range(num_sources):
-        overlay.add_source()
+        overlay.add_source(requirement=rand_requirement())
 
     for _ in range(num_blocks - num_sources - 1):
-        overlay.add_intermediate()
+        overlay.add_intermediate(requirement=rand_requirement())
 
     # randomly add links
     for source in overlay.graph.nodes():

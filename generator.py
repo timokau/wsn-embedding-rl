@@ -13,8 +13,11 @@ def random_embedding(max_embedding_nodes=32, rand=np.random):
     """Generate a random embedding that is guaranteed to be solvable"""
     solvable = False
     while not solvable:
-        result = _random_embedding(max_embedding_nodes, rand)
-        solvable = result.is_solvable()
+        try:
+            result = _random_embedding(max_embedding_nodes, rand)
+            solvable = result.is_solvable()
+        except AssertionError:
+            pass
     return result
 
 

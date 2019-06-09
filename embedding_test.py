@@ -4,6 +4,7 @@
 # anyway. When reading particular failing examples, verbosity is good.
 # pylint:disable=too-many-lines
 
+from math import inf
 from pytest import approx
 
 from infrastructure import InfrastructureNetwork
@@ -888,7 +889,7 @@ def test_link_edges_cannot_be_embedded_twice():
     overlay = OverlayNetwork()
     bso = overlay.add_source(name="bso")
     bsi = overlay.set_sink(name="bsi")
-    bint = overlay.add_intermediate("bint")
+    bint = overlay.add_intermediate(name="bint")
 
     overlay.add_link(bso, bsi)
     overlay.add_link(bso, bint)
@@ -1276,3 +1277,157 @@ def test_not_possible_to_connect_to_used_relay():
         str(v) for (u, v, t) in embedding.possibilities()
     }
     assert "(B4)-N4" not in possibilities_receivers
+
+
+def test_block_capacity():
+    """Tests that per-node capacity is respected for each timeslot"""
+    infra = InfrastructureNetwork()
+
+    nso = infra.add_source(pos=(0, 0), transmit_power_dbm=30, name="nso")
+    nin1 = infra.add_intermediate(
+        pos=(-1, 1), transmit_power_dbm=30, capacity=42, name="nin1"
+    )
+    nin2 = infra.add_intermediate(
+        pos=(1, 1), transmit_power_dbm=30, capacity=5, name="nin2"
+    )
+    _nsi = infra.set_sink(pos=(0, 1), transmit_power_dbm=30, name="nsi")
+
+    overlay = OverlayNetwork()
+
+    bso = overlay.add_source(name="bso")
+    bin1 = overlay.add_intermediate(requirement=40, name="bin1")
+    bin2 = overlay.add_intermediate(requirement=5, name="bin2")
+    bsi = overlay.set_sink(name="bsi")
+
+    overlay.add_link(bso, bin1)
+    overlay.add_link(bso, bin2)
+    overlay.add_link(bin1, bsi)
+    overlay.add_link(bin2, bsi)
+
+    # ignores sinr constraints
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso, nso)], sinrth=-inf
+    )
+
+    eso = ENode(bso, nso)
+    possibilities = embedding.possibilities()
+    # bin1 can be embedded in nin1, because 42>=40
+    assert (eso, ENode(bin1, nin1), 0) in possibilities
+    # but not in nin2 because it does not have enough capacity
+    assert (eso, ENode(bin1, nin2), 0) not in possibilities
+
+    # bin2 has less requirements and can be embedded in either one
+    assert (eso, ENode(bin2, nin1), 0) in possibilities
+    assert (eso, ENode(bin2, nin2), 0) in possibilities
+
+    # embed bin1 in nin1
+    assert embedding.take_action(ENode(bso, nso), ENode(bin1, nin1), 0)
+    possibilities = embedding.possibilities()
+
+    # pylint:disable=protected-access
+    # The easiest way to test this, not too hard to adjust when
+    # internals change.
+    assert embedding._capacity_used[(nin1, 0)] == 40
+
+    # which means bin2 can no longer be embedded in it
+    assert (eso, ENode(bin2, nin1), 0) not in possibilities
+    # while it can still be embedded in nin2
+    assert (eso, ENode(bin2, nin2), 0) in possibilities
+
+
+def test_source_and_sink_capacity_check():
+    """Tests that an embedding with invalid source or sink capacity
+    cannot be created"""
+
+    infra = InfrastructureNetwork()
+
+    nso = infra.add_source(
+        pos=(0, 0), transmit_power_dbm=30, capacity=0, name="nso"
+    )
+    _nsi = infra.set_sink(
+        pos=(1, 0), transmit_power_dbm=30, capacity=0, name="nsi"
+    )
+
+    def embedding_fails(overlay):
+        source_block = list(overlay.sources)[0]
+        print(f"bso is {source_block}")
+        failed = False
+        try:
+            _embedding = PartialEmbedding(
+                infra,
+                overlay,
+                source_mapping=[(source_block, nso)],
+                sinrth=2.0,
+            )
+        except AssertionError as _:
+            failed = True
+        return failed
+
+    # this is fine
+    overlay = OverlayNetwork()
+    bso = overlay.add_source(name="bso", requirement=0)
+    bsi = overlay.set_sink(name="bin", requirement=0)
+    overlay.add_link(bso, bsi)
+    assert not embedding_fails(overlay)
+
+    # source requirement not met
+    overlay = OverlayNetwork()
+    bso = overlay.add_source(name="bso", requirement=1)
+    bsi = overlay.set_sink(name="bin", requirement=0)
+    overlay.add_link(bso, bsi)
+    assert embedding_fails(overlay)
+
+    # sink requirement not met
+    overlay = OverlayNetwork()
+    bso = overlay.add_source(name="bso", requirement=0)
+    bsi = overlay.set_sink(name="bin", requirement=1)
+    overlay.add_link(bso, bsi)
+    assert embedding_fails(overlay)
+
+
+def test_capacity_constrains_solvability():
+    """Tests that capacity constrains impact sovability"""
+    infra = InfrastructureNetwork()
+
+    nso = infra.add_source(
+        pos=(0, 0), transmit_power_dbm=30, capacity=42, name="nso"
+    )
+    _nin = infra.add_intermediate(
+        pos=(1, 0), transmit_power_dbm=30, capacity=10, name="nin"
+    )
+    _nunreachable = infra.add_intermediate(
+        pos=(9999999, 9999999),
+        transmit_power_dbm=30,
+        capacity=inf,
+        name="nunreachable",
+    )
+    _nsi = infra.set_sink(
+        pos=(2, 0), transmit_power_dbm=30, capacity=42, name="nsi"
+    )
+
+    overlay = OverlayNetwork()
+    # this is fine; nin will only be usable as a relay, bin and bsi will
+    # both be embedded into nsi (at different timesteps)
+    bso = overlay.add_source(requirement=42, name="bso")
+    bin_ = overlay.add_intermediate(requirement=42, name="bin")
+    bsi = overlay.set_sink(requirement=42, name="bsi")
+    overlay.add_link(bso, bin_)
+    overlay.add_link(bin_, bsi)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
+    )
+    assert embedding.is_solvable()
+
+    # this is not fine; bin cannot be embedded in any block reachable
+    # from any source that precedes it
+    bso = overlay.add_source(requirement=42, name="bso")
+    bin_ = overlay.add_intermediate(requirement=43, name="bin")
+    bsi = overlay.set_sink(requirement=42, name="bsi")
+    overlay.add_link(bso, bin_)
+    overlay.add_link(bin_, bsi)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
+    )
+    assert not embedding.is_solvable()

@@ -4,7 +4,6 @@ from typing import List, Tuple, Iterable
 from collections import defaultdict
 
 import networkx as nx
-from networkx.algorithms.shortest_paths.generic import has_path
 from matplotlib import pyplot as plt
 
 import wsignal
@@ -91,6 +90,7 @@ class PartialEmbedding:
         self._by_block = dict()
         self._taken_edges = set()
         self._num_outlinks_embedded = defaultdict(int)
+        self._capacity_used = defaultdict(float)
         self._transmissions_at = dict()
         self._known_sinr_cache = dict()
         self.embedded_links = []
@@ -131,11 +131,19 @@ class PartialEmbedding:
 
     def _embed_sources(self, source_mapping: List[Tuple[str, str]]):
         for (block, node) in source_mapping:
+            requirement = self.overlay.requirement(block)
+            assert requirement <= self.infra.capacity(node)
+            self._capacity_used[(node, 0)] += requirement
             embedding = ENode(block, node)
             self.add_node(embedding, chosen=True)
 
     def _embed_sink(self):
-        embedding = ENode(self.overlay.sink, self.infra.sink)
+        osink = self.overlay.sink
+        isink = self.infra.sink
+        # capacity used will be updated with the first incoming
+        # connection
+        assert self.overlay.requirement(osink) <= self.infra.capacity(isink)
+        embedding = ENode(osink, isink)
         self.add_node(embedding, chosen=True)
 
     def _add_link_edges(self, timeslot: int):
@@ -289,7 +297,18 @@ class PartialEmbedding:
             source, target, timeslot
         ) and self._link_necessary(source, target)
 
+    def _node_can_carry(self, node, block, timeslot):
+        if block is None:
+            return True
+        used = self._capacity_used[(node, timeslot)]
+        needed = self.overlay.requirement(block)
+        available = self.infra.capacity(node)
+        return used + needed <= available
+
     def _link_feasible_in_timeslot(self, source, target, timeslot):
+        if not self._node_can_carry(target.node, target.block, timeslot):
+            return False
+
         if not self._sinr_valid(source, target, timeslot):
             return False
 
@@ -456,6 +475,10 @@ class PartialEmbedding:
             block=target_block, node=target_node, predecessor=source
         )
 
+        if target_block is not None:
+            requires = self.overlay.requirement(target_block)
+            self._capacity_used[(target_node, timeslot)] += requires
+
         newly_embedded = not sink.relay and not self.graph.node[sink]["chosen"]
         self.add_node(new_enode, chosen=True)
         if newly_embedded:
@@ -522,10 +545,14 @@ class PartialEmbedding:
         """Determines weather there is at least one valid path from each
         source to the sink (assuming no interfereing communications for each
         transmission, i.e. infinite timesteps)."""
-        esink = list(self._by_block[self.overlay.sink])[0]
         for osource in self.overlay.sources:
             esource = list(self._by_block[osource])[0]
-            if not has_path(self.graph, esource, esink):
+            reachable_enodes = nx.descendants(self.graph, esource)
+            reachable_blocks = {enode.block for enode in reachable_enodes}
+            blocks_needing_info_from_source = nx.descendants(
+                self.overlay.graph, esource.block
+            )
+            if not blocks_needing_info_from_source.issubset(reachable_blocks):
                 return False
 
         return True

@@ -1,6 +1,7 @@
 """Modelling the physical network"""
 
 from enum import Enum
+from math import inf
 import networkx as nx
 import numpy as np
 import wsignal
@@ -32,28 +33,44 @@ class InfrastructureNetwork:
         return self.graph.nodes()
 
     def add_intermediate(
-        self, pos: (float, float), transmit_power_dbm: float, name: str = None
+        self,
+        pos: (float, float),
+        transmit_power_dbm: float,
+        capacity: float = inf,
+        name: str = None,
     ):
         """Adds an intermediate node to the infrastructure graph"""
         node = self._add_node(
-            pos, transmit_power_dbm, NodeKind.intermediate, name
+            pos, transmit_power_dbm, NodeKind.intermediate, capacity, name
         )
         self.intermediates.add(node)
         return node
 
     def add_source(
-        self, pos: (float, float), transmit_power_dbm: float, name: str = None
+        self,
+        pos: (float, float),
+        transmit_power_dbm: float,
+        capacity: float = inf,
+        name: str = None,
     ):
         """Adds a source node to the infrastructure graph"""
-        node = self._add_node(pos, transmit_power_dbm, NodeKind.source, name)
+        node = self._add_node(
+            pos, transmit_power_dbm, NodeKind.source, capacity, name
+        )
         self.sources.add(node)
         return node
 
     def set_sink(
-        self, pos: (float, float), transmit_power_dbm: float, name=None
+        self,
+        pos: (float, float),
+        transmit_power_dbm: float,
+        capacity: float = inf,
+        name=None,
     ):
         """Sets the node to the infrastructure graph"""
-        node = self._add_node(pos, transmit_power_dbm, NodeKind.sink, name)
+        node = self._add_node(
+            pos, transmit_power_dbm, NodeKind.sink, capacity, name
+        )
         self.sink = node
         return node
 
@@ -62,15 +79,24 @@ class InfrastructureNetwork:
         pos: (float, float),
         transmit_power_dbm: float,
         kind: NodeKind,
+        capacity: float,
         name: str = None,
     ):
         if name is None:
             name = self._generate_name()
 
         self.graph.add_node(
-            name, kind=kind, pos=pos, transmit_power_dbm=transmit_power_dbm
+            name,
+            kind=kind,
+            pos=pos,
+            capacity=capacity,
+            transmit_power_dbm=transmit_power_dbm,
         )
         return name
+
+    def capacity(self, node):
+        """Returns the capacity of a given node"""
+        return self.graph.node[node]["capacity"]
 
     def power_received_dbm(self, source, target):
         """Power received at sink if source sends at full power"""
@@ -112,7 +138,13 @@ class InfrastructureNetwork:
 
 
 def random_infrastructure(
-    rand, min_nodes=2, max_nodes=10, num_sources=1, width=10, height=10
+    rand,
+    min_nodes=2,
+    max_nodes=10,
+    num_sources=1,
+    width=10,
+    height=10,
+    mean_capacity=10,
 ):
     """
     Generates a randomized infrastructure with uniformly distributed
@@ -125,6 +157,9 @@ def random_infrastructure(
         mean_transmit_power_dbm = 20
         return rand.normal(mean_transmit_power_dbm, 10)
 
+    def rand_capacity():
+        return rand.exponential(mean_capacity)
+
     # select a node count uniformly distributed over the given interval
     num_nodes = rand.randint(min_nodes, max_nodes + 1)
 
@@ -135,13 +170,25 @@ def random_infrastructure(
 
     infra = InfrastructureNetwork()
 
-    infra.set_sink(pos=node_positions[0], transmit_power_dbm=rand_power())
+    infra.set_sink(
+        pos=node_positions[0],
+        transmit_power_dbm=rand_power(),
+        capacity=rand_capacity(),
+    )
 
     for source_pos in node_positions[1 : num_sources + 1]:
-        infra.add_source(pos=source_pos, transmit_power_dbm=rand_power())
+        infra.add_source(
+            pos=source_pos,
+            transmit_power_dbm=rand_power(),
+            capacity=rand_capacity(),
+        )
 
     for node_pos in node_positions[num_sources + 2 :]:
-        infra.add_intermediate(pos=node_pos, transmit_power_dbm=rand_power())
+        infra.add_intermediate(
+            pos=node_pos,
+            transmit_power_dbm=rand_power(),
+            capacity=rand_capacity(),
+        )
 
     return infra
 
