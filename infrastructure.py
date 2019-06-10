@@ -98,6 +98,28 @@ class InfrastructureNetwork:
         """Returns the capacity of a given node"""
         return self.graph.node[node]["capacity"]
 
+    def position(self, node):
+        """Returns the position of a given node"""
+        return self.graph.node[node]["pos"]
+
+    def power(self, node):
+        """Returns the transmit power of a given node"""
+        return self.graph.node[node]["transmit_power_dbm"]
+
+    def min_node_distance(self):
+        """Calculates the distance between the closest nodes"""
+        min_distance = inf
+        for a in self.nodes():
+            x1, y1 = self.position(a)
+            for b in self.nodes():
+                if b == a:
+                    continue
+                x2, y2 = self.position(b)
+                dist = wsignal.distance(x1, y1, x2, y2)
+                if dist < min_distance:
+                    min_distance = dist
+        return min_distance
+
     def power_received_dbm(self, source, target):
         """Power received at sink if source sends at full power"""
         cached = self.power_received_cache.get((source, target))

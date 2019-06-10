@@ -88,7 +88,8 @@ class PartialEmbedding:
         # just for ease of access
         self._relays = set()
         self._by_block = dict()
-        self._taken_edges = set()
+        self._taken_edges = dict()
+        self._taken_embeddings = dict()
         self._num_outlinks_embedded = defaultdict(int)
         self._capacity_used = defaultdict(float)
         self._transmissions_at = dict()
@@ -174,6 +175,8 @@ class PartialEmbedding:
             kind = "sink"
 
         self.graph.add_node(node, chosen=chosen, relay=relay, kind=kind)
+        if chosen and not relay:
+            self._taken_embeddings[node.block] = node
 
     def add_edge(self, source: ENode, sink: ENode, timeslot: int):
         """Adds a possible connection to the graph if it is feasible"""
@@ -281,7 +284,7 @@ class PartialEmbedding:
         return False
 
     def _link_already_taken(self, source, target):
-        return (source, target) in self._taken_edges
+        return (source, target) in self._taken_edges.keys()
 
     def _link_necessary(self, source, target):
         if self._completes_already_embedded_link(source, target):
@@ -486,7 +489,7 @@ class PartialEmbedding:
         self.graph.add_edge(
             source, new_enode, chosen=True, timeslot=timeslot, key=timeslot
         )
-        self._taken_edges.add((source, sink))
+        self._taken_edges[(source, sink)] = timeslot
         if not new_enode.relay:
             self.embedded_links += [(source.acting_as, new_enode.acting_as)]
 
@@ -570,6 +573,80 @@ class PartialEmbedding:
         result += self.infra.__str__()
         result += self.overlay.__str__()
         return result
+
+    def construct_link_mappings(self):
+        """Returns a mapping from links to paths"""
+        result = dict()
+        for (b1, b2) in self.embedded_links:
+            source_embedding = self._taken_embeddings[b1]
+            target_embedding = self._taken_embeddings[b2]
+            cur = target_embedding
+            path = []
+            while cur != source_embedding:
+                in_edges = self.graph.in_edges(keys=True, nbunch=[cur])
+                for (u, v, k) in in_edges:
+                    if u.acting_as == b1:
+                        path.append((v, k))
+                        cur = u
+                        break
+            path.reverse()
+            result[(b1, b2)] = path
+        return result
+
+    def succinct_representation(self, distance_scale=3):
+        """Returns a succinct representation of the embedding
+
+        Only takes into account the choices that were taken, not all
+        possibilities. As a result, it can represent much bigger graphs
+        than the draw_embedding representation.
+        """
+
+        repr_graph = nx.MultiDiGraph()
+        scale_factor = distance_scale / self.infra.min_node_distance()
+        blocks_in_node = defaultdict(set)
+
+        for enode in self.graph.nodes():
+            if self.graph.node[enode]["chosen"] and enode.block is not None:
+                blocks_in_node[enode.node].add(enode.block)
+
+        for infra_node in self.infra.nodes():
+            x, y = self.infra.position(infra_node)
+            x *= scale_factor
+            y *= scale_factor
+            capacity = round(self.infra.capacity(infra_node), 1)
+            power = round(self.infra.power(infra_node), 1)
+            block_strings = []
+            for block in blocks_in_node[infra_node]:
+                # block = f'<FONT COLOR="#0000AA">{block}</FONT>'
+                block_strings += [block]
+            embedded_str = f"< {', '.join(block_strings)} >"
+            style = "rounded"
+            if infra_node in self.infra.sources:
+                style = "bold"
+            elif infra_node == self.infra.sink:
+                style = "filled"
+            repr_graph.add_node(
+                infra_node,
+                shape="polygon",
+                style=style,
+                label=f"{infra_node}\n{capacity}cap\n{power}dBm",
+                xlabel=embedded_str,
+                pos=f"{x},{y}!",
+            )
+
+        for (link, path) in self.construct_link_mappings().items():
+            source = self._taken_embeddings[link[0]]
+            for (target, timeslot) in path:
+                sinr = self.known_sinr(source.node, target.node, timeslot)
+                repr_graph.add_edge(
+                    source.node,
+                    target.node,
+                    label=f"{link[0]}->{link[1]}, {timeslot}",
+                    penwidth=sinr / 20,
+                )
+                source = target
+
+        return repr_graph
 
 
 def draw_embedding(
@@ -665,3 +742,57 @@ def draw_embedding(
         f"{timeslots} timeslots{complete_str}",
         bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
     )
+
+
+def _build_example():
+    # for quick testing
+    infra = InfrastructureNetwork()
+    n1 = infra.add_source(
+        pos=(0, 3), transmit_power_dbm=14, capacity=5, name="N1"
+    )
+    n2 = infra.add_source(
+        pos=(0, 1), transmit_power_dbm=8, capacity=8, name="N2"
+    )
+    n3 = infra.add_intermediate(
+        pos=(2, 2), transmit_power_dbm=32, capacity=20, name="N3"
+    )
+    n4 = infra.set_sink(
+        pos=(3, 0), transmit_power_dbm=10, capacity=10, name="N4"
+    )
+    n5 = infra.add_intermediate(
+        pos=(1, 2), transmit_power_dbm=20, capacity=42, name="N5"
+    )
+
+    overlay = OverlayNetwork()
+    b1 = overlay.add_source(requirement=5, name="B1")
+    b2 = overlay.add_source(requirement=5, name="B2")
+    b3 = overlay.add_intermediate(requirement=5, name="B3")
+    b4 = overlay.set_sink(requirement=5, name="B4")
+
+    overlay.add_link(b1, b3)
+    overlay.add_link(b2, b3)
+    overlay.add_link(b3, b4)
+    overlay.add_link(b2, b4)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(b1, n1), (b2, n2)]
+    )
+
+    assert embedding.take_action(ENode(b1, n1), ENode(None, n5), 0)
+    assert embedding.take_action(
+        ENode(None, n5, ENode(b1, n1)), ENode(b3, n3), 1
+    )
+    assert embedding.take_action(ENode(b2, n2), ENode(None, n5), 2)
+    assert embedding.take_action(
+        ENode(None, n5, ENode(b2, n2)), ENode(b3, n3), 3
+    )
+    assert embedding.take_action(ENode(b2, n2), ENode(b4, n4), 2)
+    assert embedding.take_action(ENode(b3, n3), ENode(b4, n4), 4)
+    return embedding
+
+
+if __name__ == "__main__":
+    # pylint: disable=ungrouped-imports
+    from networkx.drawing.nx_pydot import write_dot
+
+    write_dot(_build_example().succinct_representation(), "result.dot")
