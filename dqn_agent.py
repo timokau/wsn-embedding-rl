@@ -15,6 +15,7 @@ from baselines.deepq.replay_buffer import ReplayBuffer
 from baselines.common.schedules import LinearSchedule
 
 from graph_nets.demos.models import EncodeProcessDecode
+from networkx.drawing.nx_pydot import write_dot
 
 from gym_environment import WSNEnvironment
 from tf_util import ragged_boolean_mask
@@ -65,6 +66,7 @@ def deepq_graph_network(inpt, scope, reuse=False):
 
 def main():
     """Run the training"""
+    # pylint: disable=too-many-locals
     with baselines_tf_util.make_session():
         env = WSNEnvironment()
 
@@ -102,11 +104,17 @@ def main():
 
             episode_rewards[-1] += rew
             if done:
-                obs = env.reset()
+                episode = len(episode_rewards)
+                total_reward = episode_rewards[-1]
+                write_dot(
+                    env.env.succinct_representation(),
+                    f"{logger.get_dir()}/result-{episode}-{-total_reward}.dot",
+                )
                 episode_rewards.append(0)
                 training_times.append(0)
                 episode_times.append(time.time() - episode_start)
                 episode_start = time.time()
+                obs = env.reset()
 
             # Minimize the error in Bellman's equation on a batch
             # sampled from replay buffer.
