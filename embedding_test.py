@@ -1213,10 +1213,10 @@ def test_not_possible_to_connect_to_used_relay():
         "(B2-N3, B1-N1, 0)",
         "(B3-N2, B4-N2, 1)",
         "(B4-N2, N3, 2)",
-        "((B4)-N3, N2, 0)",
+        "((B4)-N3, N2, 3)",
         "(B2-N3, N4, 0)",
-        "((B4)-N2, N4, 3)",
-        "((B2)-N4, N3, 4)",
+        "((B4)-N2, N4, 4)",
+        "((B2)-N4, N3, 5)",
     ]:
         take_action(embedding, action)
 

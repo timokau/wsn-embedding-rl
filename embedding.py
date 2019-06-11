@@ -88,6 +88,7 @@ class PartialEmbedding:
         # just for ease of access
         self._relays = set()
         self._by_block = dict()
+        self._by_node = defaultdict(set)
         self._taken_edges = dict()
         self._taken_embeddings = dict()
         self._num_outlinks_embedded = defaultdict(int)
@@ -167,6 +168,7 @@ class PartialEmbedding:
         bb = self._by_block.get(node.block, set())
         bb.add(node)
         self._by_block[node.block] = bb
+        self._by_node[node.node].add(node)
 
         kind = "intermediate"
         if node.block in self.overlay.sources:
@@ -337,11 +339,13 @@ class PartialEmbedding:
         # the same embedding can send multiple times within a timeslot
         # (broadcasting results), but others cannot (which would send
         # other data)
-        other_embeddings = self._by_block[enode.block] - set([enode])
-        for _, _, data in self.graph.out_edges(
+        other_embeddings = self._by_node[enode.node] - set([enode])
+        for u, v, data in self.graph.out_edges(
             nbunch=other_embeddings, data=True
         ):
-            if data["timeslot"] == timeslot and data["chosen"]:
+            # loops are fine, they do not actually involve any sending
+            is_loop = u.node == v.node
+            if data["timeslot"] == timeslot and data["chosen"] and not is_loop:
                 return True
         return False
 
