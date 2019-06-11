@@ -1431,3 +1431,37 @@ def test_capacity_constrains_solvability():
         infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
     )
     assert not embedding.is_solvable()
+
+
+def test_non_broadcast_parallel_communications_impossible():
+    """Tests that non-broadcast parallel communications *do* affect the
+    SINR."""
+    infra = InfrastructureNetwork()
+
+    nso1 = infra.add_source(pos=(1, 0), transmit_power_dbm=30, name="nso1")
+    nso2 = infra.add_source(pos=(-1, 0), transmit_power_dbm=30, name="nso2")
+    nin = infra.add_intermediate(pos=(1, 0), transmit_power_dbm=30, name="nin")
+    nsi = infra.set_sink(pos=(2, 0), transmit_power_dbm=30, name="nsi")
+
+    overlay = OverlayNetwork()
+    bso1 = overlay.add_source(name="bso1")
+    bso2 = overlay.add_source(name="bso2")
+    bsi = overlay.set_sink(name="bsi")
+
+    overlay.add_link(bso1, bsi)
+    overlay.add_link(bso2, bsi)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)], sinrth=2.0
+    )
+
+    # both sources use nin as a relay
+    eso1 = ENode(bso1, nso1)
+    eso2 = ENode(bso2, nso2)
+    esi = ENode(bsi, nsi)
+    ein = ENode(None, nin)
+    assert embedding.take_action(eso1, ein, 0)
+    assert embedding.take_action(eso2, ein, 1)
+
+    assert embedding.take_action(ENode(None, nin, eso1), esi, 2)
+    assert (ENode(None, nin, eso2), esi, 2) not in embedding.possibilities()

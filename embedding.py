@@ -308,7 +308,22 @@ class PartialEmbedding:
         available = self.infra.capacity(node)
         return used + needed <= available
 
+    def _node_sending_other_data_in_timeslot(self, enode, timeslot):
+        # the same embedding can send multiple times within a timeslot
+        # (broadcasting results), but others cannot (which would send
+        # other data)
+        other_embeddings = self._by_block[enode.block] - set([enode])
+        for _, _, data in self.graph.out_edges(
+            nbunch=other_embeddings, data=True
+        ):
+            if data["timeslot"] == timeslot and data["chosen"]:
+                return True
+        return False
+
     def _link_feasible_in_timeslot(self, source, target, timeslot):
+        if self._node_sending_other_data_in_timeslot(source, timeslot):
+            return False
+
         if not self._node_can_carry(target.node, target.block, timeslot):
             return False
 
