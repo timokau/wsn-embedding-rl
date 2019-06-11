@@ -18,8 +18,14 @@ class NodeKind(Enum):
 class InfrastructureNetwork:
     """Model of the physical network"""
 
-    def __init__(self):
+    def __init__(self, bandwidth=1):
         self._last_id = 0
+        # Link capacity is influenced by the SINR and the bandwidth.
+        # Leaving the bandwidth set to 1 will result in a link capacity
+        # that is relative to the actual bandwidth (so capacity
+        # requirements are in the format of
+        # "b bits per second per bandwidth"
+        self.bandwidth = bandwidth
 
         self.graph = nx.Graph()
 

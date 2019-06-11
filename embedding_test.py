@@ -195,8 +195,8 @@ def test_invalidating_earlier_choice_impossible():
     esource_screamer = ENode(overlay.add_source(), source_node_screamer)
     esink = ENode(overlay.set_sink(), node_sink)
 
-    overlay.add_link(esource_silent.block, esink.block, sinrth=2.0)
-    overlay.add_link(esource_screamer.block, esink.block, sinrth=2.0)
+    overlay.add_link(esource_silent.block, esink.block)
+    overlay.add_link(esource_screamer.block, esink.block)
 
     embedding = PartialEmbedding(
         infra,
@@ -1247,10 +1247,10 @@ def test_block_capacity():
     bsi = overlay.set_sink(name="bsi")
 
     # ignore sinr constraints
-    overlay.add_link(bso, bin1, sinrth=-inf)
-    overlay.add_link(bso, bin2, sinrth=-inf)
-    overlay.add_link(bin1, bsi, sinrth=-inf)
-    overlay.add_link(bin2, bsi, sinrth=-inf)
+    overlay.add_link(bso, bin1, datarate=0)
+    overlay.add_link(bso, bin2, datarate=0)
+    overlay.add_link(bin1, bsi, datarate=0)
+    overlay.add_link(bin2, bsi, datarate=0)
 
     embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
 

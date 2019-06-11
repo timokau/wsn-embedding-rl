@@ -2,6 +2,7 @@
 
 from typing import List, Tuple, Iterable
 from collections import defaultdict
+import math
 from math import inf
 
 import networkx as nx
@@ -177,16 +178,18 @@ class PartialEmbedding:
         if chosen and not relay:
             self._taken_embeddings[node.block] = node
 
-    def _compute_min_sinr(self, source, target, timeslot):
-        min_sinr = inf
+    def _compute_min_datarate(self, source, target, timeslot):
+        min_datarate = inf
         may_represent = self.graph.edges[(source, target, timeslot)][
             "may_represent"
         ]
         for (u, v) in may_represent:
-            sinrth = self.overlay.graph.edges[(u, v)]["sinrth"]
-            if sinrth < min_sinr:
-                min_sinr = sinrth
-        self.graph.edges[(source, target, timeslot)]["min_sinr"] = min_sinr
+            datarate = self.overlay.graph.edges[(u, v)]["datarate"]
+            if datarate < min_datarate:
+                min_datarate = datarate
+        self.graph.edges[(source, target, timeslot)][
+            "min_datarate"
+        ] = min_datarate
 
     def add_edge(
         self, source: ENode, sink: ENode, timeslot: int, chosen=False
@@ -210,7 +213,7 @@ class PartialEmbedding:
             key=timeslot,
             may_represent=may_represent,
         )
-        self._compute_min_sinr(source, sink, timeslot)
+        self._compute_min_datarate(source, sink, timeslot)
         if not chosen and not self._link_feasible(source, sink, timeslot):
             self.remove_link(source, sink, timeslot)
 
@@ -258,24 +261,24 @@ class PartialEmbedding:
         self.graph.remove_edge(source, sink, timeslot)
 
     def _invalidates_chosen(self, source, timeslot):
-        """Checks if node sending would invalidate sinr of chosen action"""
+        """Checks if node sending would invalidate datarate of chosen action"""
         for (u, v) in self._all_known_transmissions_at(timeslot):
-            new_sinr = self.known_sinr(
+            new_capacity = self.known_capacity(
                 u.node,
                 v.node,
                 timeslot=timeslot,
                 additional_senders={source.node},
             )
-            sinrth = self.graph.edges[(u, v, timeslot)]["min_sinr"]
-            if new_sinr < sinrth:
+            thresh = self.graph.edges[(u, v, timeslot)]["min_datarate"]
+            if new_capacity < thresh:
                 return True
         return False
 
-    def _sinr_valid(self, source, target, timeslot):
-        """Checks if link sinr is valid"""
-        sinrth = self.graph.edges[(source, target, timeslot)]["min_sinr"]
-        sinr = self.known_sinr(source.node, target.node, timeslot)
-        return sinr >= sinrth
+    def _datarate_valid(self, source, target, timeslot):
+        """Checks if link datarate is valid"""
+        thresh = self.graph.edges[(source, target, timeslot)]["min_datarate"]
+        capacity = self.known_capacity(source.node, target.node, timeslot)
+        return capacity >= thresh
 
     def _unembedded_outlinks_left(self, enode):
         """Checks if there are any unembedded outgoing links left"""
@@ -349,7 +352,7 @@ class PartialEmbedding:
         if not self._node_can_carry(target.node, target.block, timeslot):
             return False
 
-        if not self._sinr_valid(source, target, timeslot):
+        if not self._datarate_valid(source, target, timeslot):
             return False
 
         if self._invalidates_chosen(source, timeslot):
@@ -424,6 +427,29 @@ class PartialEmbedding:
             p_r = self.infra.power_received_dbm(sender, node)
             received_power_watt += wsignal.dbm_to_watt(p_r)
         return wsignal.watt_to_dbm(received_power_watt)
+
+    def known_capacity(
+        self,
+        source_node: str,
+        target_node: str,
+        timeslot: int,
+        additional_senders: Iterable[str] = (),
+        noise_floor_dbm: float = -80,
+    ):
+        """
+        Link capacity assuming only already chosen edges and the
+        currently considered edges are sending.
+        """
+        sinr = self.known_sinr(
+            source_node,
+            target_node,
+            timeslot,
+            additional_senders,
+            noise_floor_dbm,
+        )
+        bandwidth = self.infra.bandwidth
+        shannon_capacity = bandwidth * math.log(1 + 10 ** (sinr / 10), 2)
+        return shannon_capacity
 
     def known_sinr(
         self,
@@ -537,7 +563,7 @@ class PartialEmbedding:
                     d["may_represent"].remove(link)
                 except KeyError:
                     pass
-                self._compute_min_sinr(u, v, d["timeslot"])
+                self._compute_min_datarate(u, v, d["timeslot"])
 
         if not source.relay:
             # we count this as an embedded outlink, even if the link is
