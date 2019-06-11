@@ -554,8 +554,10 @@ class PartialEmbedding:
         if not new_enode.relay:
             link = (source.acting_as, new_enode.acting_as)
             self.embedded_links += [link]
-            for (u, v, d) in self.graph.out_edges(
-                nbunch=self._by_block[source.acting_as], data=True
+            for (u, v, d) in list(
+                self.graph.out_edges(
+                    nbunch=self._by_block[source.acting_as], data=True
+                )
             ):
                 if d["chosen"]:
                     continue
@@ -563,7 +565,10 @@ class PartialEmbedding:
                     d["may_represent"].remove(link)
                 except KeyError:
                     pass
-                self._compute_min_datarate(u, v, d["timeslot"])
+                if len(d["may_represent"]) == 0:
+                    self.remove_link(u, v, d["timeslot"])
+                else:
+                    self._compute_min_datarate(u, v, d["timeslot"])
 
         if not source.relay:
             # we count this as an embedded outlink, even if the link is
