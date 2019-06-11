@@ -67,9 +67,9 @@ class OverlayNetwork:
         self._last_id += 1
         return f"B{self._last_id}"
 
-    def add_link(self, source: str, sink: str):
+    def add_link(self, source: str, sink: str, sinrth=2.0):
         """Adds a link between two blocks in the overlay network"""
-        self.graph.add_edge(source, sink)
+        self.graph.add_edge(source, sink, sinrth=sinrth)
 
     def _block_to_verbose_str(self, block):
         out_edge_strings = []

@@ -2,6 +2,7 @@
 
 from typing import List, Tuple, Iterable
 from collections import defaultdict
+from math import inf
 
 import networkx as nx
 from matplotlib import pyplot as plt
@@ -76,12 +77,10 @@ class PartialEmbedding:
         overlay: OverlayNetwork,
         # map block to node
         source_mapping: List[Tuple[str, str]],
-        sinrth: float = 2.0,
     ):
         self.infra = infra
         self.overlay = overlay
         self.used_timeslots = -1
-        self.sinrth = sinrth
 
         self.graph = nx.MultiDiGraph()
 
@@ -178,20 +177,41 @@ class PartialEmbedding:
         if chosen and not relay:
             self._taken_embeddings[node.block] = node
 
-    def add_edge(self, source: ENode, sink: ENode, timeslot: int):
+    def _compute_min_sinr(self, source, target, timeslot):
+        min_sinr = inf
+        may_represent = self.graph.edges[(source, target, timeslot)][
+            "may_represent"
+        ]
+        for (u, v) in may_represent:
+            sinrth = self.overlay.graph.edges[(u, v)]["sinrth"]
+            if sinrth < min_sinr:
+                min_sinr = sinrth
+        self.graph.edges[(source, target, timeslot)]["min_sinr"] = min_sinr
+
+    def add_edge(
+        self, source: ENode, sink: ENode, timeslot: int, chosen=False
+    ):
         """Adds a possible connection to the graph if it is feasible"""
         # make sure we don't accidentally un-choose an edge
-        assert not self.graph.has_edge(source, sink, timeslot)
+        assert chosen or not self.graph.has_edge(source, sink, timeslot)
+        may_represent = set()
+        for (u, v) in self.overlay.graph.out_edges(nbunch=[source.acting_as]):
+            if (u, v) not in self.embedded_links and (
+                sink.block is None or sink.acting_as == v
+            ):
+                may_represent.add((u, v))
+
         self.graph.add_edge(
             source,
             sink,
-            # a new edge can never be chosen
-            chosen=False,
+            chosen=chosen,
             timeslot=timeslot,
             # edges are uniquely identified by (source, target, timeslot)
             key=timeslot,
+            may_represent=may_represent,
         )
-        if not self._link_feasible(source, sink, timeslot):
+        self._compute_min_sinr(source, sink, timeslot)
+        if not chosen and not self._link_feasible(source, sink, timeslot):
             self.remove_link(source, sink, timeslot)
 
     def _add_relay_edges(self, timeslot):
@@ -246,14 +266,16 @@ class PartialEmbedding:
                 timeslot=timeslot,
                 additional_senders={source.node},
             )
-            if new_sinr < self.sinrth:
+            sinrth = self.graph.edges[(u, v, timeslot)]["min_sinr"]
+            if new_sinr < sinrth:
                 return True
         return False
 
     def _sinr_valid(self, source, target, timeslot):
         """Checks if link sinr is valid"""
+        sinrth = self.graph.edges[(source, target, timeslot)]["min_sinr"]
         sinr = self.known_sinr(source.node, target.node, timeslot)
-        return sinr >= self.sinrth
+        return sinr >= sinrth
 
     def _unembedded_outlinks_left(self, enode):
         """Checks if there are any unembedded outgoing links left"""
@@ -470,7 +492,7 @@ class PartialEmbedding:
 
     def take_action(self, source: ENode, sink: ENode, timeslot: int):
         """Take an action represented by an edge and update the graph"""
-        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-branches,too-many-statements
         if (source, sink, timeslot) not in self.possibilities():
             return False
 
@@ -501,12 +523,21 @@ class PartialEmbedding:
         self.add_node(new_enode, chosen=True)
         if newly_embedded:
             self._remove_other_options_for(new_enode.block)
-        self.graph.add_edge(
-            source, new_enode, chosen=True, timeslot=timeslot, key=timeslot
-        )
+        self.add_edge(source, new_enode, chosen=True, timeslot=timeslot)
         self._taken_edges[(source, sink)] = timeslot
         if not new_enode.relay:
-            self.embedded_links += [(source.acting_as, new_enode.acting_as)]
+            link = (source.acting_as, new_enode.acting_as)
+            self.embedded_links += [link]
+            for (u, v, d) in self.graph.out_edges(
+                nbunch=self._by_block[source.acting_as], data=True
+            ):
+                if d["chosen"]:
+                    continue
+                try:
+                    d["may_represent"].remove(link)
+                except KeyError:
+                    pass
+                self._compute_min_sinr(u, v, d["timeslot"])
 
         if not source.relay:
             # we count this as an embedded outlink, even if the link is

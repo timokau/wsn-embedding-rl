@@ -19,7 +19,7 @@ def take_action(embedding, action):
         if str(possibility) == action:
             embedding.take_action(*possibility)
             return
-    raise Exception(f"Action {action} not possible")
+    raise Exception(f"Action {action} not in possibilities: {possibilities}")
 
 
 def test_path_loss():
@@ -44,10 +44,7 @@ def test_path_loss():
     overlay.add_link(source_block, sink_block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(source_block, source_node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(source_block, source_node)]
     )
     assert len(embedding.possibilities()) == 0
 
@@ -73,10 +70,7 @@ def test_trivial_possibilities():
     overlay.add_link(source_block, sink_block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(source_block, source_node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(source_block, source_node)]
     )
     # either go to N2 as a relay (doesn't make sense but is a viable
     # option), or embed B2 into N2 and go there
@@ -201,8 +195,8 @@ def test_invalidating_earlier_choice_impossible():
     esource_screamer = ENode(overlay.add_source(), source_node_screamer)
     esink = ENode(overlay.set_sink(), node_sink)
 
-    overlay.add_link(esource_silent.block, esink.block)
-    overlay.add_link(esource_screamer.block, esink.block)
+    overlay.add_link(esource_silent.block, esink.block, sinrth=2.0)
+    overlay.add_link(esource_screamer.block, esink.block, sinrth=2.0)
 
     embedding = PartialEmbedding(
         infra,
@@ -211,7 +205,6 @@ def test_invalidating_earlier_choice_impossible():
             (esource_silent.block, esource_silent.node),
             (esource_screamer.block, esource_screamer.node),
         ],
-        sinrth=2.0,
     )
 
     action_to_be_invalidated = (esource_screamer, esink, 0)
@@ -223,7 +216,7 @@ def test_invalidating_earlier_choice_impossible():
 
     # first assert that action would be valid by itself
     screamer_sinr = embedding.known_sinr(source_node_screamer, node_sink, 0)
-    assert screamer_sinr > embedding.sinrth
+    assert screamer_sinr > 2.0
 
     new_possibilities = embedding.possibilities()
     # but since the action would make the first embedding invalid (a
@@ -262,10 +255,7 @@ def test_no_unnecessary_options():
     overlay.add_link(esource.block, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     # Currently, it would be possible to either embed the sink and
@@ -327,7 +317,6 @@ def test_all_viable_options_offered():
             (esource1.block, esource1.node),
             (esource2.block, esource2.node),
         ],
-        sinrth=2.0,
     )
 
     # source1 can connect to the intermediate, which could be embedded
@@ -368,7 +357,6 @@ def test_timeslots_dynamically_created():
             (esource1.block, esource1.node),
             (esource2.block, esource2.node),
         ],
-        sinrth=2.0,
     )
 
     # nothing used yet
@@ -417,10 +405,7 @@ def test_completion_detection():
     overlay.add_link(esource.block, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     assert not embedding.is_complete()
@@ -458,7 +443,6 @@ def test_parallel_receive_impossible():
             (esource1.block, esource1.node),
             (esource2.block, esource2.node),
         ],
-        sinrth=2.0,
     )
 
     # Try to send two signals to sink at the same timeslot. This should
@@ -490,10 +474,7 @@ def test_broadcast_possible():
     overlay.add_link(einterm.block, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     # Broadcast from source to sink and intermediate
@@ -535,7 +516,6 @@ def test_count_timeslots_multiple_sources():
             (esource1.block, esource1.node),
             (esource2.block, esource2.node),
         ],
-        sinrth=2.0,
     )
 
     assert not embedding.is_complete()
@@ -583,10 +563,7 @@ def test_count_timeslots_parallel():
     overlay.add_link(einterm2.block, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     assert not embedding.is_complete()
@@ -636,10 +613,7 @@ def test_count_timeslots_loop():
     overlay.add_link(einterm2.block, esource.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     assert not embedding.is_complete()
@@ -691,10 +665,7 @@ def test_relays_correctly_wired_up():
     overlay.add_link(esource.block, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     assert not embedding.is_complete()
@@ -756,10 +727,7 @@ def test_outlinks_limited():
     overlay.add_link(esource.block, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     assert embedding.take_action(esource, ENode(None, nrelay), 0)
@@ -804,10 +772,7 @@ def test_loop_within_infra_possible():
     overlay.add_link(einterm.block, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     sinr_before = embedding.known_sinr(nsource, nsink, 0)
@@ -837,10 +802,7 @@ def test_big_distance_not_solvable():
     overlay.add_link(esource.block, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     assert not embedding.is_solvable()
@@ -867,10 +829,7 @@ def test_more_blocks_than_nodes_solvable():
     overlay.add_link(binterm, esink.block)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(esource.block, esource.node)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(esource.block, esource.node)]
     )
 
     assert embedding.is_solvable()
@@ -895,9 +854,7 @@ def test_link_edges_cannot_be_embedded_twice():
     overlay.add_link(bso, bint)
     overlay.add_link(bint, bsi)
 
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
-    )
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
 
     eso = ENode(bso, nso)
     esi = ENode(bsi, nsi)
@@ -945,10 +902,7 @@ def test_unnecessary_links_removed_in_other_timeslots():
     overlay.add_link(bfaraway_2, bsi)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(bso, nso), (bfaraway_1, nfaraway_1)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(bso, nso), (bfaraway_1, nfaraway_1)]
     )
 
     esi = ENode(bsi, nsi)
@@ -994,7 +948,7 @@ def test_used_relays_not_for_other_nodes():
     overlay.add_link(bso2, bso1)
 
     embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)], sinrth=2.0
+        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)]
     )
 
     eso1 = ENode(bso1, nso1)
@@ -1037,9 +991,7 @@ def test_remaining_outlinks_with_relays():
     overlay.add_link(binterm, bsi)
     overlay.add_link(bso, bsi)
 
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
-    )
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
 
     eso = ENode(bso, nso)
     esi = ENode(bsi, nsi)
@@ -1104,10 +1056,7 @@ def test_not_possible_to_take_same_relay_twice():
     overlay.add_link(bfaraway_2, bsi)
 
     embedding = PartialEmbedding(
-        infra,
-        overlay,
-        source_mapping=[(bso, nso), (bfaraway_1, nfaraway_1)],
-        sinrth=2.0,
+        infra, overlay, source_mapping=[(bso, nso), (bfaraway_1, nfaraway_1)]
     )
 
     eso = ENode(bso, nso)
@@ -1153,7 +1102,7 @@ def test_block_embedding_is_unique():
     overlay.add_link(binterm, bsi)
 
     embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)], sinrth=2.0
+        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)]
     )
 
     eso1 = ENode(bso1, nso1)
@@ -1199,9 +1148,7 @@ def test_unembedded_outlinks_in_forked_relays():
     overlay.add_link(binterm, bsi)
     overlay.add_link(bso, bsi)
 
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
-    )
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
 
     eso = ENode(bso, nso)
     esi = ENode(bsi, nsi)
@@ -1259,7 +1206,7 @@ def test_not_possible_to_connect_to_used_relay():
     overlay.add_link(b4, b1)
 
     embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(b3, n2), (b2, n3)], sinrth=2.0
+        infra, overlay, source_mapping=[(b3, n2), (b2, n3)]
     )
 
     for action in [
@@ -1299,15 +1246,13 @@ def test_block_capacity():
     bin2 = overlay.add_intermediate(requirement=5, name="bin2")
     bsi = overlay.set_sink(name="bsi")
 
-    overlay.add_link(bso, bin1)
-    overlay.add_link(bso, bin2)
-    overlay.add_link(bin1, bsi)
-    overlay.add_link(bin2, bsi)
+    # ignore sinr constraints
+    overlay.add_link(bso, bin1, sinrth=-inf)
+    overlay.add_link(bso, bin2, sinrth=-inf)
+    overlay.add_link(bin1, bsi, sinrth=-inf)
+    overlay.add_link(bin2, bsi, sinrth=-inf)
 
-    # ignores sinr constraints
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso, nso)], sinrth=-inf
-    )
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
 
     eso = ENode(bso, nso)
     possibilities = embedding.possibilities()
@@ -1354,10 +1299,7 @@ def test_source_and_sink_capacity_check():
         failed = False
         try:
             _embedding = PartialEmbedding(
-                infra,
-                overlay,
-                source_mapping=[(source_block, nso)],
-                sinrth=2.0,
+                infra, overlay, source_mapping=[(source_block, nso)]
             )
         except AssertionError as _:
             failed = True
@@ -1414,9 +1356,7 @@ def test_capacity_constrains_solvability():
     overlay.add_link(bso, bin_)
     overlay.add_link(bin_, bsi)
 
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
-    )
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
     assert embedding.is_solvable()
 
     # this is not fine; bin cannot be embedded in any block reachable
@@ -1427,9 +1367,7 @@ def test_capacity_constrains_solvability():
     overlay.add_link(bso, bin_)
     overlay.add_link(bin_, bsi)
 
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso, nso)], sinrth=2.0
-    )
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
     assert not embedding.is_solvable()
 
 
@@ -1452,7 +1390,7 @@ def test_non_broadcast_parallel_communications_impossible():
     overlay.add_link(bso2, bsi)
 
     embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)], sinrth=2.0
+        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)]
     )
 
     # both sources use nin as a relay
