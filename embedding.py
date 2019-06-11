@@ -95,6 +95,7 @@ class PartialEmbedding:
         self._capacity_used = defaultdict(float)
         self._transmissions_at = dict()
         self._known_sinr_cache = dict()
+        self._impossible_embeddings = defaultdict(set)
         self.embedded_links = []
 
         self._build_possibilities_graph(source_mapping)
@@ -247,6 +248,39 @@ class PartialEmbedding:
                     if add_outgoing:
                         self.add_edge(embedding, relay, timeslot)
 
+    def _prune_embeddings(self):
+        """Remove embeddings that could not support their outgoing
+        datarate"""
+        # assumes that exactly one timeslot has already been wired up
+        sink = self._taken_embeddings[self.overlay.sink]
+        for embedding in list(self.graph.nodes()):
+            if not embedding.relay and not nx.has_path(
+                self.graph, embedding, sink
+            ):
+                self._impossible_embeddings[embedding.block].add(
+                    embedding.node
+                )
+                self.remove_node(embedding)
+
+        # sources are already embedded, therefore no concrete embedding
+        # options into other nodes exist. We still have to check though,
+        # because of relays.
+        for source in self.overlay.sources:
+            for node in self.infra.nodes():
+                tmp_enode = ENode(source, node)
+                if self.graph.has_node(tmp_enode):
+                    continue
+                self.add_node(tmp_enode)
+                self.wire_up_outgoing(tmp_enode, 0)
+                if not nx.has_path(self.graph, tmp_enode, sink):
+                    # remove the existing link to a relay
+                    esource = self._taken_embeddings[source]
+                    erelay = ENode(None, node)
+                    if self.graph.has_edge(esource, erelay, 0):
+                        self.remove_link(esource, erelay, 0)
+                    self._impossible_embeddings[source].add(node)
+                self.remove_node(tmp_enode)
+
     def _build_possibilities_graph(
         self, source_mapping: List[Tuple[str, str]]
     ):
@@ -254,13 +288,22 @@ class PartialEmbedding:
         self._embed_sink()
         self._embed_sources(source_mapping)
         self._add_relay_nodes()
-
         self.add_timeslot()
+
+        self._prune_embeddings()
 
     def remove_link(self, source: ENode, sink: ENode, timeslot: int):
         """Removes a link given its source, sink and timeslot"""
         assert not self.graph.edges[(source, sink, timeslot)]["chosen"]
         self.graph.remove_edge(source, sink, timeslot)
+
+    def remove_node(self, node: ENode):
+        """Removes a node if it is not chosen"""
+        if self.graph.nodes[node]["chosen"]:
+            return
+        self._by_block[node.acting_as].remove(node)
+        self._by_node[node.node].remove(node)
+        self.graph.remove_node(node)
 
     def _invalidates_chosen(self, source, timeslot):
         """Checks if node sending would invalidate datarate of chosen action"""
@@ -322,17 +365,25 @@ class PartialEmbedding:
             return False
         return True
 
-    def _link_feasible(self, source, target, timeslot):
-        return self._link_feasible_in_timeslot(
-            source, target, timeslot
-        ) and self._link_necessary(source, target)
+    def _link_possible(self, source, target):
+        # check if the relay node can support this block (e.g. can reach
+        # the sink)
+        impossible = self._impossible_embeddings[source.acting_as]
+        return not (target.relay and target.node in impossible)
 
-    def _node_can_carry(self, node, block, timeslot):
-        if block is None:
+    def _link_feasible(self, source, target, timeslot):
+        return (
+            self._link_feasible_in_timeslot(source, target, timeslot)
+            and self._link_necessary(source, target)
+            and self._link_possible(source, target)
+        )
+
+    def _node_can_carry(self, enode, timeslot):
+        if enode.block is None:
             return True
-        used = self._capacity_used[(node, timeslot)]
-        needed = self.overlay.requirement(block)
-        available = self.infra.capacity(node)
+        used = self._capacity_used[(enode.node, timeslot)]
+        needed = self.overlay.requirement(enode.block)
+        available = self.infra.capacity(enode.node)
         return used + needed <= available
 
     def _node_sending_other_data_in_timeslot(self, enode, timeslot):
@@ -353,14 +404,15 @@ class PartialEmbedding:
         if self._node_sending_other_data_in_timeslot(source, timeslot):
             return False
 
-        if not self._node_can_carry(target.node, target.block, timeslot):
-            return False
-
         if not self._datarate_valid(source, target, timeslot):
             return False
 
         if self._invalidates_chosen(source, timeslot):
             return False
+
+        if not self._node_can_carry(target, timeslot):
+            return False
+
         return True
 
     def _remove_already_completed_inlinks(self, enode):
@@ -380,13 +432,9 @@ class PartialEmbedding:
 
     def _remove_other_options_for(self, block):
         """Removes not-chosen options for a block"""
-        new_by_block = set()
-        for node in self._by_block[block]:
+        for node in list(self._by_block[block]):
             if not self.graph.node[node]["chosen"]:
-                self.graph.remove_node(node)
-            else:
-                new_by_block.add(node)
-        self._by_block[block] = new_by_block
+                self.remove_node(node)
 
     def _remove_links_between(self, source, target):
         """Removes all remaining unchosen links between two ENodes"""
@@ -527,7 +575,7 @@ class PartialEmbedding:
             return False
 
         # this should never be false, that would be a bug
-        assert self._link_feasible_in_timeslot(source, sink, timeslot)
+        assert self._link_feasible(source, sink, timeslot)
 
         if not sink.relay:
             originating = source
@@ -570,9 +618,10 @@ class PartialEmbedding:
                 except KeyError:
                     pass
                 if len(d["may_represent"]) == 0:
-                    self.remove_link(u, v, d["timeslot"])
-                else:
-                    self._compute_min_datarate(u, v, d["timeslot"])
+                    ts = d["timeslot"]
+                    self._compute_min_datarate(u, v, ts)
+                    if not self._link_feasible_in_timeslot(u, v, ts):
+                        self.remove_link(u, v, ts)
 
         if not source.relay:
             # we count this as an embedded outlink, even if the link is
