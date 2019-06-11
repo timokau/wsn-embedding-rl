@@ -636,12 +636,19 @@ class PartialEmbedding:
 
         for (link, path) in self.construct_link_mappings().items():
             source = self._taken_embeddings[link[0]]
+            target = self._taken_embeddings[link[1]]
+            # first show the target link
+            repr_graph.add_edge(
+                source.node, target.node, style="dashed", color="blue"
+            )
+
+            # add the actual embedding
             for (target, timeslot) in path:
                 sinr = self.known_sinr(source.node, target.node, timeslot)
                 repr_graph.add_edge(
                     source.node,
                     target.node,
-                    label=f"{link[0]}->{link[1]}, {timeslot}",
+                    label=f"{link[0]}->{link[1]}\n{timeslot}",
                     penwidth=sinr / 20,
                 )
                 source = target
