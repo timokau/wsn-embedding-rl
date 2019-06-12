@@ -72,25 +72,27 @@ class OverlayNetwork:
         self.graph.add_edge(source, sink, datarate=datarate)
 
     def _block_to_verbose_str(self, block):
-        out_edge_strings = []
-        for (_, v) in self.graph.out_edges(nbunch=[block]):
-            out_edge_strings.append(f"-> {v}")
-        oe = ", ".join(out_edge_strings)
-        return f"{block} ({oe})"
+        requirement = self.requirement(block)
+        return f'(name="{block}", requirement={requirement})'
 
     def __str__(self):
         result = "Overlay with:\n"
         result += f"- {len(self.sources)} sources:\n"
         for source in self.sources:
             s = self._block_to_verbose_str(source)
-            result += f"  - {s}\n"
+            result += f"  - add_source{s}\n"
         result += f"- {len(self.intermediates)} intermediates:\n"
         for intermediate in self.intermediates:
             i = self._block_to_verbose_str(intermediate)
-            result += f"  - {i}\n"
+            result += f"  - add_intermediate{i}\n"
         result += f"- one sink:\n"
         s = self._block_to_verbose_str(self.sink)
-        result += f"  - {s}\n"
+        result += f"  - set_sink{s}\n"
+
+        links = self.graph.edges(data=True)
+        result += f"- {len(links)} links:\n"
+        for (u, v, d) in links:
+            result += f"  - add_link({u}, {v}, {d['datarate']})\n"
         return result
 
 

@@ -149,20 +149,21 @@ class InfrastructureNetwork:
         result += f"- {len(self.sources)} sources:\n"
         for source in self.sources:
             s = self._node_to_verbose_str(source)
-            result += f"  - {s}\n"
+            result += f"  - add_source{s}\n"
         result += f"- {len(self.intermediates)} intermediates:\n"
         for intermediate in self.intermediates:
             i = self._node_to_verbose_str(intermediate)
-            result += f"  - {i}\n"
+            result += f"  - add_intermediate{i}\n"
         result += "- one sink:\n"
         s = self._node_to_verbose_str(self.sink)
-        result += f"  - {s}\n"
+        result += f"  - set_sink{s}\n"
         return result
 
     def _node_to_verbose_str(self, node):
         pos = self.graph.nodes[node]["pos"]
-        transmit_power_dbm = self.graph.nodes[node]["transmit_power_dbm"]
-        return f"{node} at ({pos[0]}, {pos[1]}), {transmit_power_dbm}dBm"
+        pos = f"({pos[0]}, {pos[1]})"
+        tp = self.graph.nodes[node]["transmit_power_dbm"]
+        return f'(name="{node}", pos={pos}, transmit_power_dbm={tp})'
 
 
 def random_infrastructure(
