@@ -98,17 +98,18 @@ class WSNEnvironment(gym.Env):
         embedding = self.env
         infra_graph = embedding.infra.graph
         node_to_index = dict()
+        index_to_node = dict()
 
         # add the nodes
         for (i, enode) in enumerate(embedding.graph.nodes()):
             inode = infra_graph.node[enode.node]
             node_to_index[enode] = i
+            index_to_node[i] = enode
             input_graph.add_node(
                 i, features=np.array([inode["pos"][0], inode["pos"][1]])
             )
 
         # add the edges
-        num_possbile = 0
         for (u, v, k, d) in embedding.graph.edges(data=True, keys=True):
             source_chosen = embedding.graph.nodes[u]["chosen"]
             u = node_to_index[u]
@@ -116,8 +117,6 @@ class WSNEnvironment(gym.Env):
             chosen = d["chosen"]
             timeslot = d["timeslot"]
             possible = not chosen and source_chosen
-            if possible:
-                num_possbile += 1
             input_graph.add_edge(
                 u,
                 v,
@@ -133,6 +132,19 @@ class WSNEnvironment(gym.Env):
 
         gt = utils_np.networkxs_to_graphs_tuple([input_graph])
 
+        # build action indices here to make sure the indices matches the
+        # one the network is seeing
+        self.actions = []
+        for (u, v, d) in zip(gt.senders, gt.receivers, gt.edges):
+            possible = d[1] == 1
+            if not possible:
+                continue
+            else:
+                source = index_to_node[u]
+                target = index_to_node[v]
+                timeslot = int(d[2])
+                self.actions.append((source, target, timeslot))
+
         self.last_translation_dict = node_to_index
         return gt
 
@@ -140,7 +152,6 @@ class WSNEnvironment(gym.Env):
         (source, sink, timeslot) = self.actions[action]
         ts_before = self.env.used_timeslots
         self.env.take_action(source, sink, timeslot)
-        self._query_actions()
 
         reward = ts_before - self.env.used_timeslots
         ob = self._get_observation()
@@ -161,7 +172,6 @@ class WSNEnvironment(gym.Env):
     def reset(self):
         self.env = random_embedding(self.max_embedding_size, np.random)
         self.last_translation_dict = dict()
-        self._query_actions()
         return self._get_observation()
 
     def render(self, mode="human"):
