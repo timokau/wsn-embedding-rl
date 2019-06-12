@@ -146,6 +146,10 @@ class WSNEnvironment(gym.Env):
         ob = self._get_observation()
         done = self.env.is_complete()
 
+        if not done and len(self.env.possibilities()) == 0:
+            done = True
+            reward -= 100
+
         return ob, reward, done, {}
 
     @property
