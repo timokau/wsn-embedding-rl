@@ -81,6 +81,7 @@ class PartialEmbedding:
     ):
         self.infra = infra
         self.overlay = overlay
+        self._source_mapping = source_mapping
         self.used_timeslots = -1
 
         self.graph = nx.MultiDiGraph()
@@ -99,6 +100,10 @@ class PartialEmbedding:
         self.embedded_links = []
 
         self._build_possibilities_graph(source_mapping)
+
+    def reset(self):
+        """Returns a fresh, identically configured partial embedding"""
+        return PartialEmbedding(self.infra, self.overlay, self._source_mapping)
 
     def options(self):
         """Returns a list of not yet options, which may or may not be

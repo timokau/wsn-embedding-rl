@@ -157,12 +157,15 @@ class WSNEnvironment(gym.Env):
         self.env.take_action(source, sink, timeslot)
 
         reward = ts_before - self.env.used_timeslots
-        ob = self._get_observation()
         done = self.env.is_complete()
 
         if not done and len(self.env.possibilities()) == 0:
-            done = True
+            # make it easier for the network to figure out that resets
+            # are bad
             reward -= 100
+            self.env = self.env.reset()
+
+        ob = self._get_observation()
 
         return ob, reward, done, {}
 
