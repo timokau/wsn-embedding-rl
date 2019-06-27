@@ -26,7 +26,7 @@ class GraphSpace(gym.spaces.Space):
     def to_placeholders(self, batch_size=None):
         """Creates a placeholder to be fed into a graph_net"""
         # pylint: disable=protected-access
-        result = utils_tf._build_placeholders_from_specs(
+        placeholders = utils_tf._build_placeholders_from_specs(
             dtypes=GraphsTuple(
                 nodes=tf.float64,
                 edges=tf.float64,
@@ -47,7 +47,7 @@ class GraphSpace(gym.spaces.Space):
             ),
         )
 
-        def make_result_feed_dict(val):
+        def make_feed_dict(val):
             if isinstance(val, GraphsTuple):
                 graphs_tuple = val
             else:
@@ -57,11 +57,11 @@ class GraphSpace(gym.spaces.Space):
                         utils_np.graphs_tuple_to_data_dicts(graphs_tuple)[0]
                     )
                 graphs_tuple = utils_np.data_dicts_to_graphs_tuple(dicts)
-            return utils_tf.get_feed_dict(result, graphs_tuple)
+            return utils_tf.get_feed_dict(placeholders, graphs_tuple)
 
-        result.make_feed_dict = make_result_feed_dict
-        result.name = "TEST_NAME"
-        return result
+        placeholders.make_feed_dict = make_feed_dict
+        placeholders.name = "Graph observation placeholder"
+        return placeholders
 
 
 class WSNEnvironment(gym.Env):
