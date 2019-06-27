@@ -73,7 +73,7 @@ class WSNEnvironment(gym.Env):
     def __init__(self, max_embedding_size=50):
         self.max_embedding_size = max_embedding_size
         self.observation_space = GraphSpace(
-            global_dim=1, node_dim=2, edge_dim=3
+            global_dim=1, node_dim=3, edge_dim=3
         )
         self.reset()
 
@@ -106,7 +106,10 @@ class WSNEnvironment(gym.Env):
             node_to_index[enode] = i
             index_to_node[i] = enode
             input_graph.add_node(
-                i, features=np.array([inode["pos"][0], inode["pos"][1]])
+                i,
+                features=np.array(
+                    [inode["pos"][0], inode["pos"][1], float(enode.relay)]
+                ),
             )
 
         # add the edges
