@@ -253,39 +253,6 @@ class PartialEmbedding:
                     if add_outgoing:
                         self.add_edge(embedding, relay, timeslot)
 
-    def _prune_embeddings(self):
-        """Remove embeddings that could not support their outgoing
-        datarate"""
-        # assumes that exactly one timeslot has already been wired up
-        sink = self._taken_embeddings[self.overlay.sink]
-        for embedding in list(self.graph.nodes()):
-            if not embedding.relay and not nx.has_path(
-                self.graph, embedding, sink
-            ):
-                self._impossible_embeddings[embedding.block].add(
-                    embedding.node
-                )
-                self.remove_node(embedding)
-
-        # sources are already embedded, therefore no concrete embedding
-        # options into other nodes exist. We still have to check though,
-        # because of relays.
-        for source in self.overlay.sources:
-            for node in self.infra.nodes():
-                tmp_enode = ENode(source, node)
-                if self.graph.has_node(tmp_enode):
-                    continue
-                self.add_node(tmp_enode)
-                self.wire_up_outgoing(tmp_enode, 0)
-                if not nx.has_path(self.graph, tmp_enode, sink):
-                    # remove the existing link to a relay
-                    esource = self._taken_embeddings[source]
-                    erelay = ENode(None, node)
-                    if self.graph.has_edge(esource, erelay, 0):
-                        self.remove_link(esource, erelay, 0)
-                    self._impossible_embeddings[source].add(node)
-                self.remove_node(tmp_enode)
-
     def _build_possibilities_graph(
         self, source_mapping: List[Tuple[str, str]]
     ):
@@ -294,8 +261,6 @@ class PartialEmbedding:
         self._embed_sources(source_mapping)
         self._add_relay_nodes()
         self.add_timeslot()
-
-        self._prune_embeddings()
 
     def remove_link(self, source: ENode, sink: ENode, timeslot: int):
         """Removes a link given its source, sink and timeslot"""
