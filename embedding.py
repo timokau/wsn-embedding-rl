@@ -154,15 +154,6 @@ class PartialEmbedding:
         embedding = ENode(osink, isink)
         self.add_node(embedding, chosen=True)
 
-    def _add_link_edges(self, timeslot: int):
-        for (source_block, sink_block) in self.overlay.links():
-            for source_embedding in self._by_block.get(source_block, set()):
-                for sink_embedding in self._by_block.get(sink_block, set()):
-                    if not sink_embedding.relay:
-                        self.add_edge(
-                            source_embedding, sink_embedding, timeslot
-                        )
-
     def _add_relay_nodes(self):
         for node in self.infra.nodes():
             embedding = ENode(None, node)
@@ -224,34 +215,6 @@ class PartialEmbedding:
         self._compute_min_datarate(source, sink, timeslot)
         if not chosen and not self._link_feasible(source, sink, timeslot):
             self.remove_link(source, sink, timeslot)
-
-    def _add_relay_edges(self, timeslot):
-        # relay nodes are fully connected to allow for arbitrary paths
-        for source_node in self.infra.nodes():
-            for sink_node in self.infra.nodes():
-                if source_node != sink_node:
-                    source_embedding = ENode(None, source_node)
-                    sink_embedding = ENode(None, sink_node)
-                    self.add_edge(source_embedding, sink_embedding, timeslot)
-
-        # incoming + outgoing relay
-        for block in self.overlay.graph.nodes():
-            # if a block expects an incoming connection, it may come
-            # from any relay node
-            add_incoming = self.overlay.graph.in_degree[block] > 0
-
-            # if a block had an outgoing connection, it may go to any
-            # relay node
-            add_outgoing = self.overlay.graph.out_degree[block] > 0
-
-            for relay in self._relays:
-                for embedding in self._by_block.get(block, set()):
-                    if embedding.node == relay.node:
-                        continue
-                    if add_incoming:
-                        self.add_edge(relay, embedding, timeslot)
-                    if add_outgoing:
-                        self.add_edge(embedding, relay, timeslot)
 
     def _build_possibilities_graph(
         self, source_mapping: List[Tuple[str, str]]
@@ -518,25 +481,39 @@ class PartialEmbedding:
             self._known_sinr_cache[timeslot] = timeslot_cache
         return cached
 
-    def wire_up_outgoing(self, enode: ENode, timeslot: int):
+    def add_outedges(self, enode: ENode, timeslot: int):
         """Connect a new ENode to all its possible successors"""
+        # avoid going in circles within a link embedding
+        already_visited = [(enode.acting_as, enode.node)]
+        cur = enode
+        while cur.predecessor is not None:
+            cur = cur.predecessor
+            already_visited.append((cur.acting_as, cur.node))
+
+        # could go to any node as a relay
         for relay in self._relays:
-            if relay.node != enode.node:
+            # Avoid circles. It is important that we can reliably
+            # determine when there are no more actions to take and the
+            # embedding is "failed", circles make that hard.
+            if (enode.acting_as, relay.node) not in already_visited:
                 self.add_edge(enode, relay, timeslot)
 
         out_edges = self.overlay.graph.out_edges(nbunch=[enode.acting_as])
 
         for (_, v) in out_edges:
             for option in self._by_block.get(v, set()):
-                if not option.relay or option.predecessor is None:
-                    # do not connect to used relays
+                # do not connect to used relays, do not go in circles
+                if (
+                    not option.relay
+                    and (v, option.node) not in already_visited
+                ):
                     self.add_edge(enode, option, timeslot)
 
     def add_timeslot(self):
         """Adds a new timeslot as an option"""
         self.used_timeslots += 1
-        self._add_link_edges(self.used_timeslots)
-        self._add_relay_edges(self.used_timeslots)
+        for enode in self.nodes():
+            self.add_outedges(enode, self.used_timeslots)
 
     def take_action(self, source: ENode, sink: ENode, timeslot: int):
         """Take an action represented by an edge and update the graph"""
@@ -619,7 +596,7 @@ class PartialEmbedding:
         if actually_new:
             self._by_block[new_enode.acting_as].add(new_enode)
             for ts in range(self.used_timeslots + 1):
-                self.wire_up_outgoing(new_enode, ts)
+                self.add_outedges(new_enode, ts)
 
         if timeslot >= self.used_timeslots:
             self.add_timeslot()

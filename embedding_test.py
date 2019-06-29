@@ -15,14 +15,18 @@ from embedding import PartialEmbedding, ENode
 # pylint: disable=invalid-name
 
 
-def take_action(embedding, action):
+def take_action(embedding, action, expect_success=True):
     """Takes an action by text, to ease testing"""
     possibilities = embedding.possibilities()
     for possibility in possibilities:
         if str(possibility) == action:
             embedding.take_action(*possibility)
-            return
-    raise Exception(f"Action {action} not in possibilities: {possibilities}")
+            return True
+    if expect_success:
+        raise Exception(
+            f"Action {action} not in possibilities: {possibilities}"
+        )
+    return False
 
 
 def test_path_loss():
@@ -689,7 +693,6 @@ def test_relays_correctly_wired_up():
     assert set(embedding.possibilities()) == set(
         [
             (erelay1_source, esink, 1),
-            (erelay1_source, ENode(None, nsource), 1),
             (erelay1_source, ENode(None, nsink), 1),
             (erelay1_source, ENode(None, nrelay2), 1),
         ]
@@ -698,12 +701,7 @@ def test_relays_correctly_wired_up():
     assert embedding.take_action(erelay1_source, ENode(None, nrelay2), 1)
     erelay2_source = ENode(None, nrelay2, predecessor=erelay1_source)
     assert set(embedding.possibilities()) == set(
-        [
-            (erelay2_source, esink, 2),
-            (erelay2_source, ENode(None, nsource), 2),
-            (erelay2_source, ENode(None, nsink), 2),
-            (erelay2_source, ENode(None, nrelay1), 2),
-        ]
+        [(erelay2_source, esink, 2), (erelay2_source, ENode(None, nsink), 2)]
     )
 
 
@@ -1188,10 +1186,10 @@ def test_not_possible_to_connect_to_used_relay():
         pos=(6.115, 8.84), transmit_power_dbm=25.0006, name="N2"
     )
     n3 = infra.add_source(
-        pos=(4.345, 4.199), transmit_power_dbm=-3.184, name="N3"
+        pos=(4.345, 4.199), transmit_power_dbm=50.184, name="N3"
     )
     _n4 = infra.add_intermediate(
-        pos=(9.738, 2.369), transmit_power_dbm=3.589, name="N4"
+        pos=(9.738, 2.369), transmit_power_dbm=50.589, name="N4"
     )
     _n1 = infra.set_sink(pos=(8.7, 9.67), transmit_power_dbm=18.849, name="N1")
 
@@ -1216,10 +1214,8 @@ def test_not_possible_to_connect_to_used_relay():
         "(B2-N3, B1-N1, 0)",
         "(B3-N2, B4-N2, 1)",
         "(B4-N2, N3, 2)",
-        "((B4)-N3, N2, 3)",
         "(B2-N3, N4, 0)",
-        "((B4)-N2, N4, 4)",
-        "((B2)-N4, N3, 5)",
+        "((B4)-N3, N4, 3)",
     ]:
         take_action(embedding, action)
 
@@ -1406,3 +1402,30 @@ def test_non_broadcast_parallel_communications_impossible():
 
     assert embedding.take_action(ENode(None, nin, eso1), esi, 2)
     assert (ENode(None, nin, eso2), esi, 2) not in embedding.possibilities()
+
+
+def test_relay_circles_imossible():
+    """Tests that each relay node can be taken at most once in a
+    path"""
+    infra = InfrastructureNetwork()
+
+    N2 = infra.add_source(name="N2", pos=(4.8, 5.7), transmit_power_dbm=29.7)
+    _N4 = infra.add_intermediate(
+        name="N4", pos=(4.7, 8.8), transmit_power_dbm=13.4
+    )
+    _N1 = infra.set_sink(name="N1", pos=(7.7, 5.2), transmit_power_dbm=22.9)
+
+    overlay = OverlayNetwork()
+    B2 = overlay.add_source(name="B2", requirement=0)
+    _B5 = overlay.add_intermediate(name="B5", requirement=0)
+    B4 = overlay.add_intermediate(name="B4", requirement=0)
+    B1 = overlay.set_sink(name="B1", requirement=0)
+    overlay.add_link(B2, B4, 0)
+    overlay.add_link(B4, B1, 0)
+
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(B2, N2)])
+
+    take_action(embedding, "(B2-N2, N4, 0)")
+    # n2 was already visited, circle
+    assert not take_action(embedding, "((B2)-N4, N2, 1)", expect_success=False)
+    # take_action("((B2)-N2, N4, 2)")
