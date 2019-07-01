@@ -505,23 +505,24 @@ class PartialEmbedding:
         # this should never be false, that would be a bug
         assert self._link_feasible(source, target, timeslot)
 
-        new_enode = ENode(
-            block=target.block, node=target.node, predecessor=source
-        )
-        if new_enode.relay:
-            self.add_node(new_enode)
+        if target.relay:
+            self._remove_links_between(source, target)
+            target = ENode(
+                block=target.block, node=target.node, predecessor=source
+            )
+            self.add_node(target)
 
         self._capacity_used[
             (target.node, timeslot)
         ] += self.overlay.requirement(target.block)
 
-        self.choose_node(new_enode)
+        self.choose_node(target)
 
-        self.add_edge(source, new_enode, chosen=True, timeslot=timeslot)
+        self.add_edge(source, target, chosen=True, timeslot=timeslot)
         self._taken_edges[(source, target)] = timeslot
 
-        if not new_enode.relay:
-            link = (source.acting_as, new_enode.acting_as)
+        if not target.relay:
+            link = (source.acting_as, target.acting_as)
             self.embedded_links += [link]
             for (u, v, d) in list(
                 self.graph.out_edges(
@@ -554,12 +555,11 @@ class PartialEmbedding:
                 self._num_outlinks_embedded[source.acting_as] += 1
             self.graph.nodes[source]["has_out"] = True
 
-        self._transmissions_at[timeslot].append((source, new_enode))
+        self._transmissions_at[timeslot].append((source, target))
 
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
 
-        self._remove_links_between(source, target)
         for enode in self._by_block[source.acting_as]:
             if not self._unembedded_outlinks_left(enode):
                 self._remove_other_outlinks_of(enode)
