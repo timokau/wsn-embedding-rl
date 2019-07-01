@@ -94,7 +94,6 @@ class PartialEmbedding:
         self._num_outlinks_embedded = defaultdict(int)
         self._capacity_used = defaultdict(float)
         self._transmissions_at = defaultdict(list)
-        self._known_sinr_cache = defaultdict(dict)
         self.embedded_links = []
 
         self._build_possibilities_graph(source_mapping)
@@ -427,37 +426,25 @@ class PartialEmbedding:
         SINR assuming only already chosen edges and the currently
         considered edges are sending.
         """
-        index = (
-            source_node,
-            target_node,
-            tuple(additional_senders),
-            noise_floor_dbm,
+        received_signal_dbm = self.infra.power_received_dbm(
+            source_node, target_node
         )
-        timeslot_cache = self._known_sinr_cache[timeslot]
-        cached = timeslot_cache.get(index)
-        if cached is None:
-            received_signal_dbm = self.infra.power_received_dbm(
-                source_node, target_node
-            )
 
-            # make sure source node is already counted (which it will be
-            # in the case of broadcast anyway), subtract it later
-            additional_senders = set(additional_senders)
-            additional_senders.add(source_node)
+        # make sure source node is already counted (which it will be
+        # in the case of broadcast anyway), subtract it later
+        additional_senders = set(additional_senders)
+        additional_senders.add(source_node)
 
-            received_power_dbm = self.power_at_node(
-                target_node, timeslot, additional_senders=additional_senders
-            )
-            received_interference_dbm = wsignal.subtract_dbm(
-                received_power_dbm, received_signal_dbm
-            )
+        received_power_dbm = self.power_at_node(
+            target_node, timeslot, additional_senders=additional_senders
+        )
+        received_interference_dbm = wsignal.subtract_dbm(
+            received_power_dbm, received_signal_dbm
+        )
 
-            cached = wsignal.sinr(
-                received_signal_dbm, received_interference_dbm, noise_floor_dbm
-            )
-            timeslot_cache[index] = cached
-            self._known_sinr_cache[timeslot] = timeslot_cache
-        return cached
+        return wsignal.sinr(
+            received_signal_dbm, received_interference_dbm, noise_floor_dbm
+        )
 
     def _add_outedges(self, enode: ENode, timeslot: int):
         """Connect a new ENode to all its possible successors"""
