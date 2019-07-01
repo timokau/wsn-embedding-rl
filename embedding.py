@@ -488,16 +488,6 @@ class PartialEmbedding:
         # this should never be false, that would be a bug
         assert self._link_feasible(source, target, timeslot)
 
-        if not target.relay:
-            originating = source
-            while originating.relay:
-                originating = originating.predecessor
-            # link completed, clean up originating block
-            out_edges = self.graph.out_edges(nbunch=[originating], keys=True)
-            for (u, v, k) in list(out_edges):
-                if v.block == target.block:
-                    self.remove_link(u, v, k)
-
         target_block = target.block
         target_node = target.node
         new_enode = ENode(
