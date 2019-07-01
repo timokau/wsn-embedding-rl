@@ -160,10 +160,19 @@ class WSNEnvironment(gym.Env):
         done = self.env.is_complete()
 
         if not done and len(self.env.possibilities()) == 0:
+            # This either means we've run into a rut or the problem
+            # instance is not solvable. Generate a new problem instance
+            # in either case, since we can't reliably differentiate
+            # between them.
+
+            # In theory, the network could learn to just reset itself
+            # when it encounters a difficult problem. Reward
+            # normalization could help with that. May not be a problem
+            # in practice.
+            self.reset()
             # make it easier for the network to figure out that resets
             # are bad
             reward -= 100
-            self.env = self.env.reset()
 
         ob = self._get_observation()
 

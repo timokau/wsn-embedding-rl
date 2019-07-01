@@ -11,11 +11,11 @@ from embedding import PartialEmbedding
 
 def random_embedding(max_embedding_nodes=32, rand=np.random):
     """Generate a random embedding that is guaranteed to be solvable"""
-    solvable = False
-    while not solvable:
+    succeeded = False
+    while not succeeded:
         try:
             result = _random_embedding(max_embedding_nodes, rand)
-            solvable = result.is_solvable()
+            succeeded = True
         except AssertionError:
             pass
     return result

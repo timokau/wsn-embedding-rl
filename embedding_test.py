@@ -4,7 +4,6 @@
 # anyway. When reading particular failing examples, verbosity is good.
 # pylint:disable=too-many-lines
 
-from math import inf
 from pytest import approx
 
 from infrastructure import InfrastructureNetwork
@@ -785,57 +784,6 @@ def test_loop_within_infra_possible():
     assert embedding.is_complete()
 
 
-def test_big_distance_not_solvable():
-    """Tests that an embedding is not solvable if the sink is not
-    reachable from a source"""
-    infra = InfrastructureNetwork()
-
-    # those nodes cannot possibly reach each other
-    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=1, name="nso")
-    nsink = infra.set_sink(pos=(100000, 0), transmit_power_dbm=1, name="nsi")
-
-    overlay = OverlayNetwork()
-
-    esource = ENode(overlay.add_source(name="bso"), nsource)
-    esink = ENode(overlay.set_sink(name="bsi"), nsink)
-
-    # so this link cannot be embedded
-    overlay.add_link(esource.block, esink.block)
-
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(esource.block, esource.node)]
-    )
-
-    assert not embedding.is_solvable()
-
-
-def test_more_blocks_than_nodes_solvable():
-    """Tests that an embedding with many blocks but only two nodes is
-    solvable as long as those two nodes can reach each other"""
-
-    infra = InfrastructureNetwork()
-
-    # those nodes cannot possibly reach each other
-    nsource = infra.add_source(pos=(0, 0), transmit_power_dbm=1, name="nso")
-    nsink = infra.set_sink(pos=(1, 0), transmit_power_dbm=30, name="nsi")
-
-    overlay = OverlayNetwork()
-
-    esource = ENode(overlay.add_source(name="bso"), nsource)
-    binterm = overlay.add_intermediate(name="bin")
-    esink = ENode(overlay.set_sink(name="bsi"), nsink)
-
-    # one link will just have to be embedded within a node
-    overlay.add_link(esource.block, binterm)
-    overlay.add_link(binterm, esink.block)
-
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(esource.block, esource.node)]
-    )
-
-    assert embedding.is_solvable()
-
-
 def test_link_edges_cannot_be_embedded_twice():
     """Tests that edges completing a link that is already embedded are
     removed or not even added when creating a new timestep"""
@@ -1324,50 +1272,6 @@ def test_source_and_sink_capacity_check():
     bsi = overlay.set_sink(name="bin", requirement=1)
     overlay.add_link(bso, bsi)
     assert embedding_fails(overlay)
-
-
-def test_capacity_constrains_solvability():
-    """Tests that capacity constrains impact sovability"""
-    infra = InfrastructureNetwork()
-
-    nso = infra.add_source(
-        pos=(0, 0), transmit_power_dbm=30, capacity=42, name="nso"
-    )
-    _nin = infra.add_intermediate(
-        pos=(1, 0), transmit_power_dbm=30, capacity=10, name="nin"
-    )
-    _nunreachable = infra.add_intermediate(
-        pos=(9999999, 9999999),
-        transmit_power_dbm=30,
-        capacity=inf,
-        name="nunreachable",
-    )
-    _nsi = infra.set_sink(
-        pos=(2, 0), transmit_power_dbm=30, capacity=42, name="nsi"
-    )
-
-    overlay = OverlayNetwork()
-    # this is fine; nin will only be usable as a relay, bin and bsi will
-    # both be embedded into nsi (at different timesteps)
-    bso = overlay.add_source(requirement=42, name="bso")
-    bin_ = overlay.add_intermediate(requirement=42, name="bin")
-    bsi = overlay.set_sink(requirement=42, name="bsi")
-    overlay.add_link(bso, bin_)
-    overlay.add_link(bin_, bsi)
-
-    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
-    assert embedding.is_solvable()
-
-    # this is not fine; bin cannot be embedded in any block reachable
-    # from any source that precedes it
-    bso = overlay.add_source(requirement=42, name="bso")
-    bin_ = overlay.add_intermediate(requirement=43, name="bin")
-    bsi = overlay.set_sink(requirement=42, name="bsi")
-    overlay.add_link(bso, bin_)
-    overlay.add_link(bin_, bsi)
-
-    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
-    assert not embedding.is_solvable()
 
 
 def test_non_broadcast_parallel_communications_impossible():

@@ -588,22 +588,6 @@ class PartialEmbedding:
         self._remove_links_infeasible_in(timeslot)
         return True
 
-    def is_solvable(self):
-        """Determines weather there is at least one valid path from each
-        source to the sink (assuming no interfereing communications for each
-        transmission, i.e. infinite timesteps)."""
-        for osource in self.overlay.sources:
-            esource = list(self._by_block[osource])[0]
-            reachable_enodes = nx.descendants(self.graph, esource)
-            reachable_blocks = {enode.block for enode in reachable_enodes}
-            blocks_needing_info_from_source = nx.descendants(
-                self.overlay.graph, esource.block
-            )
-            if not blocks_needing_info_from_source.issubset(reachable_blocks):
-                return False
-
-        return True
-
     def is_complete(self):
         """Determines if all blocks and links are embedded"""
         # check that each link is embedded
