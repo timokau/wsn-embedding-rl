@@ -196,12 +196,8 @@ class PartialEmbedding:
             "min_datarate"
         ] = min_datarate
 
-    def add_edge(
-        self, source: ENode, sink: ENode, timeslot: int, chosen=False
-    ):
+    def add_edge(self, source: ENode, sink: ENode, timeslot: int):
         """Adds a possible connection to the graph if it is feasible"""
-        # make sure we don't accidentally un-choose an edge
-        assert chosen or not self.graph.has_edge(source, sink, timeslot)
         may_represent = set()
         for (u, v) in self.overlay.graph.out_edges(nbunch=[source.acting_as]):
             if (u, v) not in self.embedded_links and (
@@ -212,15 +208,77 @@ class PartialEmbedding:
         self.graph.add_edge(
             source,
             sink,
-            chosen=chosen,
+            chosen=False,
             timeslot=timeslot,
             # edges are uniquely identified by (source, target, timeslot)
             key=timeslot,
             may_represent=may_represent,
         )
         self._compute_min_datarate(source, sink, timeslot)
-        if not chosen and not self._link_feasible(source, sink, timeslot):
+        if not self._link_feasible(source, sink, timeslot):
             self.remove_link(source, sink, timeslot)
+
+    def choose_edge(self, source: ENode, target: ENode, timeslot: int):
+        """Marks a potential connection as chosen and updates the rest
+        of the graph with the consequences. Should only ever be done
+        when the source node is already chosen."""
+        # pylint: disable=too-many-branches,too-many-statements
+        assert self.graph.node[source]["chosen"]
+        self.graph.edges[(source, target, timeslot)]["chosen"] = True
+        self._taken_edges[(source, target)] = timeslot
+
+        self._capacity_used[
+            (target.node, timeslot)
+        ] += self.overlay.requirement(target.block)
+
+        # if this completes a link
+        if not target.relay:
+            link = (source.acting_as, target.acting_as)
+            self.embedded_links += [link]
+
+            # update other edges that may have represented this link
+            for (u, v, d) in list(
+                self.graph.out_edges(
+                    nbunch=self._by_block[source.acting_as], data=True
+                )
+            ):
+                if d["chosen"]:
+                    continue
+                try:
+                    d["may_represent"].remove(link)
+                except KeyError:
+                    pass
+                if len(d["may_represent"]) == 0:
+                    ts = d["timeslot"]
+                    self._compute_min_datarate(u, v, ts)
+                    if not self._link_feasible_in_timeslot(u, v, ts):
+                        self.remove_link(u, v, ts)
+
+        if source.relay:
+            # if the link is originating as a relay, the link was
+            # already counted once. It is only counted again if the path
+            # forks, i.e. this is the second outlink of the relay.
+            if self.graph.nodes[source].get("has_out", False):
+                self._num_outlinks_embedded[source.acting_as] += 1
+            self.graph.nodes[source]["has_out"] = True
+        else:
+            # we count this as an embedded outlink, even if the link is
+            # not completed yet. Once we have chosen the beginning of a
+            # link, it does not make sense to begin the link in another
+            # way too.
+            self._num_outlinks_embedded[source.acting_as] += 1
+
+        self._transmissions_at[timeslot].append((source, target))
+
+        for enode in self._by_block[source.acting_as]:
+            if not self._unembedded_outlinks_left(enode):
+                self._remove_other_outlinks_of(enode)
+        if not target.relay:
+            # check for other options that would have completed the same
+            # link
+            for enode in self._by_block[target.acting_as]:
+                self._remove_already_completed_inlinks(enode)
+        self._remove_links_infeasible_in(timeslot)
 
     def _build_possibilities_graph(
         self, source_mapping: List[Tuple[str, str]]
@@ -498,7 +556,6 @@ class PartialEmbedding:
 
     def take_action(self, source: ENode, target: ENode, timeslot: int):
         """Take an action represented by an edge and update the graph"""
-        # pylint: disable=too-many-branches,too-many-statements
         if (source, target, timeslot) not in self.possibilities():
             return False
 
@@ -511,64 +568,13 @@ class PartialEmbedding:
                 block=target.block, node=target.node, predecessor=source
             )
             self.add_node(target)
-
-        self._capacity_used[
-            (target.node, timeslot)
-        ] += self.overlay.requirement(target.block)
+            self.add_edge(source, target, timeslot)
 
         self.choose_node(target)
-
-        self.add_edge(source, target, chosen=True, timeslot=timeslot)
-        self._taken_edges[(source, target)] = timeslot
-
-        if not target.relay:
-            link = (source.acting_as, target.acting_as)
-            self.embedded_links += [link]
-            for (u, v, d) in list(
-                self.graph.out_edges(
-                    nbunch=self._by_block[source.acting_as], data=True
-                )
-            ):
-                if d["chosen"]:
-                    continue
-                try:
-                    d["may_represent"].remove(link)
-                except KeyError:
-                    pass
-                if len(d["may_represent"]) == 0:
-                    ts = d["timeslot"]
-                    self._compute_min_datarate(u, v, ts)
-                    if not self._link_feasible_in_timeslot(u, v, ts):
-                        self.remove_link(u, v, ts)
-
-        if not source.relay:
-            # we count this as an embedded outlink, even if the link is
-            # not completed yet. Once we have chosen the beginning of a
-            # link, it does not make sense to begin the link in another
-            # way too.
-            self._num_outlinks_embedded[source.acting_as] += 1
-        else:
-            # if the link is originating as a relay, the link was
-            # already counted once. It is only counted again if the path
-            # forks, i.e. this is the second outlink of the relay.
-            if self.graph.nodes[source].get("has_out", False):
-                self._num_outlinks_embedded[source.acting_as] += 1
-            self.graph.nodes[source]["has_out"] = True
-
-        self._transmissions_at[timeslot].append((source, target))
+        self.choose_edge(source, target, timeslot)
 
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
-
-        for enode in self._by_block[source.acting_as]:
-            if not self._unembedded_outlinks_left(enode):
-                self._remove_other_outlinks_of(enode)
-        if not target.relay:
-            # check for other options that would have completed the same
-            # link
-            for enode in self._by_block[target.acting_as]:
-                self._remove_already_completed_inlinks(enode)
-        self._remove_links_infeasible_in(timeslot)
         return True
 
     def is_complete(self):
