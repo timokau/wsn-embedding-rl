@@ -61,6 +61,8 @@ class OverlayNetwork:
 
     def requirement(self, block):
         """Returns the resource requirement of a given block"""
+        if block is None:
+            return 0
         return self.graph.node[block]["requirement"]
 
     def _generate_name(self):

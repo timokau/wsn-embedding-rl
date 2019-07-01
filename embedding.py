@@ -129,7 +129,8 @@ class PartialEmbedding:
             assert requirement <= self.infra.capacity(node)
             self._capacity_used[(node, 0)] += requirement
             embedding = ENode(block, node)
-            self.add_node(embedding, chosen=True)
+            self.add_node(embedding)
+            self.choose_node(embedding)
 
     def _embed_sink(self):
         osink = self.overlay.sink
@@ -138,14 +139,15 @@ class PartialEmbedding:
         # connection
         assert self.overlay.requirement(osink) <= self.infra.capacity(isink)
         embedding = ENode(osink, isink)
-        self.add_node(embedding, chosen=True)
+        self.add_node(embedding)
+        self.choose_node(embedding)
 
     def _add_relay_nodes(self):
         for node in self.infra.nodes():
             embedding = ENode(None, node)
             self.add_node(embedding, relay=True)
 
-    def add_node(self, node: ENode, chosen=False, relay=False):
+    def add_node(self, node: ENode, relay=False):
         """Adds a given ENode to the graph"""
         self._by_block[node.block].add(node)
         self._by_node[node.node].add(node)
@@ -156,9 +158,30 @@ class PartialEmbedding:
         elif node.block == self.overlay.sink:
             kind = "sink"
 
-        self.graph.add_node(node, chosen=chosen, relay=relay, kind=kind)
-        if chosen and not relay:
+        self.graph.add_node(node, chosen=False, relay=relay, kind=kind)
+
+        # add the necessary edges
+        self._by_block[node.acting_as].add(node)
+        for ts in range(self.used_timeslots + 1):
+            self._add_outedges(node, ts)
+
+    def choose_node(self, node: ENode):
+        """Marks an potential embedding as chosen and updates the rest
+        of the graph with the consequences. Should only ever be done
+        when the enode is the source, the sink or has an incoming chosen
+        edge."""
+        if self.graph.node[node]["chosen"]:
+            return
+
+        self.graph.node[node]["chosen"] = True
+
+        if not node.relay:
             self._taken_embeddings[node.block] = node
+
+            # remove other options for embedding this block
+            for option in list(self._by_block[node.block]):
+                if option != node:
+                    self.remove_node(option)
 
     def _compute_min_datarate(self, source, target, timeslot):
         min_datarate = inf
@@ -340,12 +363,6 @@ class PartialEmbedding:
             if not d["chosen"]:
                 self.remove_link(u, v, k)
 
-    def _remove_other_options_for(self, block):
-        """Removes not-chosen options for a block"""
-        for node in list(self._by_block[block]):
-            if not self.graph.node[node]["chosen"]:
-                self.remove_node(node)
-
     def _remove_links_between(self, source, target):
         """Removes all remaining unchosen links between two ENodes"""
         for timeslot in range(self.used_timeslots + 1):
@@ -488,24 +505,21 @@ class PartialEmbedding:
         # this should never be false, that would be a bug
         assert self._link_feasible(source, target, timeslot)
 
-        target_block = target.block
-        target_node = target.node
         new_enode = ENode(
-            block=target_block, node=target_node, predecessor=source
+            block=target.block, node=target.node, predecessor=source
         )
+        if new_enode.relay:
+            self.add_node(new_enode)
 
-        if target_block is not None:
-            requires = self.overlay.requirement(target_block)
-            self._capacity_used[(target_node, timeslot)] += requires
+        self._capacity_used[
+            (target.node, timeslot)
+        ] += self.overlay.requirement(target.block)
 
-        newly_embedded = (
-            not target.relay and not self.graph.node[target]["chosen"]
-        )
-        self.add_node(new_enode, chosen=True)
-        if newly_embedded:
-            self._remove_other_options_for(new_enode.block)
+        self.choose_node(new_enode)
+
         self.add_edge(source, new_enode, chosen=True, timeslot=timeslot)
         self._taken_edges[(source, target)] = timeslot
+
         if not new_enode.relay:
             link = (source.acting_as, new_enode.acting_as)
             self.embedded_links += [link]
@@ -541,15 +555,6 @@ class PartialEmbedding:
             self.graph.nodes[source]["has_out"] = True
 
         self._transmissions_at[timeslot].append((source, new_enode))
-
-        # determine if we're actually just updating an existing node
-        # (normal case) or really creating a new node (a link-specific
-        # copy of a relay)
-        actually_new = new_enode.relay
-        if actually_new:
-            self._by_block[new_enode.acting_as].add(new_enode)
-            for ts in range(self.used_timeslots + 1):
-                self._add_outedges(new_enode, ts)
 
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
