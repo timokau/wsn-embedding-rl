@@ -57,6 +57,7 @@ class ENode:
         return not self.__eq__(other)
 
     def __hash__(self):
+        # cache the hashes, since hashing is quite expensive
         if self._hash is None:
             if self.relay:
                 self._hash = hash((self.block, self.node, self.predecessor))
@@ -86,7 +87,6 @@ class PartialEmbedding:
         self.graph = nx.MultiDiGraph()
 
         # just for ease of access
-        self._relays = set()
         self._by_block = defaultdict(set)
         self._by_node = defaultdict(set)
         self._taken_edges = dict()
@@ -143,7 +143,6 @@ class PartialEmbedding:
     def _add_relay_nodes(self):
         for node in self.infra.nodes():
             embedding = ENode(None, node)
-            self._relays.add(embedding)
             self.add_node(embedding, relay=True)
 
     def add_node(self, node: ENode, chosen=False, relay=False):
@@ -456,17 +455,17 @@ class PartialEmbedding:
             already_visited.append((cur.acting_as, cur.node))
 
         # could go to any node as a relay
-        for relay in self._relays:
+        for node in self.infra.nodes():
             # Avoid circles. It is important that we can reliably
             # determine when there are no more actions to take and the
             # embedding is "failed", circles make that hard.
-            if (enode.acting_as, relay.node) not in already_visited:
-                self.add_edge(enode, relay, timeslot)
+            if (enode.acting_as, node) not in already_visited:
+                self.add_edge(enode, ENode(None, node), timeslot)
 
         out_edges = self.overlay.graph.out_edges(nbunch=[enode.acting_as])
 
         for (_, v) in out_edges:
-            for option in self._by_block.get(v, set()):
+            for option in self._by_block[v]:
                 # do not connect to used relays, do not go in circles
                 if (
                     not option.relay
@@ -480,27 +479,27 @@ class PartialEmbedding:
         for enode in self.nodes():
             self._add_outedges(enode, self.used_timeslots)
 
-    def take_action(self, source: ENode, sink: ENode, timeslot: int):
+    def take_action(self, source: ENode, target: ENode, timeslot: int):
         """Take an action represented by an edge and update the graph"""
         # pylint: disable=too-many-branches,too-many-statements
-        if (source, sink, timeslot) not in self.possibilities():
+        if (source, target, timeslot) not in self.possibilities():
             return False
 
         # this should never be false, that would be a bug
-        assert self._link_feasible(source, sink, timeslot)
+        assert self._link_feasible(source, target, timeslot)
 
-        if not sink.relay:
+        if not target.relay:
             originating = source
             while originating.relay:
                 originating = originating.predecessor
             # link completed, clean up originating block
             out_edges = self.graph.out_edges(nbunch=[originating], keys=True)
             for (u, v, k) in list(out_edges):
-                if v.block == sink.block:
+                if v.block == target.block:
                     self.remove_link(u, v, k)
 
-        target_block = sink.block
-        target_node = sink.node
+        target_block = target.block
+        target_node = target.node
         new_enode = ENode(
             block=target_block, node=target_node, predecessor=source
         )
@@ -509,12 +508,14 @@ class PartialEmbedding:
             requires = self.overlay.requirement(target_block)
             self._capacity_used[(target_node, timeslot)] += requires
 
-        newly_embedded = not sink.relay and not self.graph.node[sink]["chosen"]
+        newly_embedded = (
+            not target.relay and not self.graph.node[target]["chosen"]
+        )
         self.add_node(new_enode, chosen=True)
         if newly_embedded:
             self._remove_other_options_for(new_enode.block)
         self.add_edge(source, new_enode, chosen=True, timeslot=timeslot)
-        self._taken_edges[(source, sink)] = timeslot
+        self._taken_edges[(source, target)] = timeslot
         if not new_enode.relay:
             link = (source.acting_as, new_enode.acting_as)
             self.embedded_links += [link]
@@ -563,14 +564,14 @@ class PartialEmbedding:
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
 
-        self._remove_links_between(source, sink)
+        self._remove_links_between(source, target)
         for enode in self._by_block[source.acting_as]:
             if not self._unembedded_outlinks_left(enode):
                 self._remove_other_outlinks_of(enode)
-        if not sink.relay:
+        if not target.relay:
             # check for other options that would have completed the same
             # link
-            for enode in self._by_block[sink.acting_as]:
+            for enode in self._by_block[target.acting_as]:
                 self._remove_already_completed_inlinks(enode)
         self._remove_links_infeasible_in(timeslot)
         return True
