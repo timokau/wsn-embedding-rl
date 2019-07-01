@@ -1,6 +1,7 @@
 """Simple semi-greedy baseline agent"""
 from math import inf
 import random
+import time
 import numpy as np
 from gym_environment import WSNEnvironment
 
@@ -50,16 +51,21 @@ def play_episode(env):
 def evaluate(env, episodes=100):
     """Evaluate over many episodes"""
     rewards = []
+    times = []
     for _ in range(episodes):
+        before = time.time()
         rewards.append(play_episode(env))
-    return np.mean(rewards)
+        times.append(time.time() - before)
+    return rewards, times
 
 
 def main():
     """Run the experiment"""
     env = WSNEnvironment()
+    rewards, times = evaluate(env, 100)
     print("=====")
-    print(evaluate(env, 1000))
+    print(f"Mean reward: {np.mean(rewards)}")
+    print(f"Mean time: {np.mean(times)}")
 
 
 if __name__ == "__main__":
