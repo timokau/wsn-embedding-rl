@@ -12,7 +12,7 @@ def act(graph_tuple):
     possible_actions = []
     min_ts = inf
     i = 0
-    for (_u, _v, d) in zip(
+    for (u, v, d) in zip(
         graph_tuple.senders, graph_tuple.receivers, graph_tuple.edges
     ):
         possible = d[1] == 1
@@ -20,7 +20,7 @@ def act(graph_tuple):
             continue
         else:
             timeslot = int(d[2])
-            possible_actions.append(i)
+            possible_actions.append((u, v, d))
             if timeslot == min_ts:
                 min_ts_actions.append(i)
             elif timeslot < min_ts:
@@ -29,9 +29,24 @@ def act(graph_tuple):
             i += 1
 
     # break out of reset loops by acting random every once in a while
-    if random.random() < 0.01:
-        return random.choice(possible_actions)
-    return random.choice(min_ts_actions)
+    # if random.random() < 0.01:
+    #     return random.choice(range(i))
+
+    preferred_actions = min_ts_actions
+
+    not_relay_actions = []
+    for action_idx in preferred_actions:
+        (u, v, d) = possible_actions[action_idx]
+        receiver = graph_tuple.nodes[v]
+        # receiver_pos = (receiver[0], receiver[1])
+        receiver_is_relay = bool(receiver[2])
+        if not receiver_is_relay:
+            not_relay_actions.append(action_idx)
+
+    if len(not_relay_actions) > 0:
+        preferred_actions = not_relay_actions
+
+    return random.choice(preferred_actions)
 
 
 def play_episode(env):
