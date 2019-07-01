@@ -67,6 +67,27 @@ def log_path_loss(
     description:
 
     https://en.wikipedia.org/wiki/Path_loss#Loss_exponent
+
+    Comparison to a linear model:
+
+    s = signal_dbm
+    signal_watt = 10**(s/10 + 3)
+
+    d = distance_meter
+    e = loss exponent
+
+    loss_dbm = e * 10 * log d
+
+    received_dbm = s - loss_dbm = s - 10e * log d
+    received_watt = 10**( (s - 10e * log d) / 10 + 3)
+                  = 10**( s/10 - (10e * log d)/10 + 3)
+                  = 10**( s/10 + 3 - e * log d )
+                  = 10**( s/10 + 3 ) / 10 ** ( e * log d )
+                  = signal_watt / (10 ** log d) ** e
+                  = signal_watt / d**e
+                  =: signal_watt * loss_linear
+
+    => loss_linear = 1/d**2
     """
     # decibels relative to 1m
     if distance_meters != 0:
