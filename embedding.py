@@ -6,7 +6,6 @@ import math
 from math import inf
 
 import networkx as nx
-from matplotlib import pyplot as plt
 
 import wsignal
 from infrastructure import InfrastructureNetwork
@@ -88,15 +87,14 @@ class PartialEmbedding:
 
         # just for ease of access
         self._relays = set()
-        self._by_block = dict()
+        self._by_block = defaultdict(set)
         self._by_node = defaultdict(set)
         self._taken_edges = dict()
         self._taken_embeddings = dict()
         self._num_outlinks_embedded = defaultdict(int)
         self._capacity_used = defaultdict(float)
-        self._transmissions_at = dict()
-        self._known_sinr_cache = dict()
-        self._impossible_embeddings = defaultdict(set)
+        self._transmissions_at = defaultdict(list)
+        self._known_sinr_cache = defaultdict(dict)
         self.embedded_links = []
 
         self._build_possibilities_graph(source_mapping)
@@ -104,17 +102,6 @@ class PartialEmbedding:
     def reset(self):
         """Returns a fresh, identically configured partial embedding"""
         return PartialEmbedding(self.infra, self.overlay, self._source_mapping)
-
-    def options(self):
-        """Returns a list of not yet options, which may or may not be
-        possible yet"""
-        out_edges = self.graph.out_edges(data=True)
-        options = [
-            (source, target, data["timeslot"])
-            for (source, target, data) in out_edges
-            if not data["chosen"]
-        ]
-        return options
 
     def possibilities(self):
         """Returns a list of possible actions (edges)"""
@@ -162,9 +149,7 @@ class PartialEmbedding:
 
     def add_node(self, node: ENode, chosen=False, relay=False):
         """Adds a given ENode to the graph"""
-        bb = self._by_block.get(node.block, set())
-        bb.add(node)
-        self._by_block[node.block] = bb
+        self._by_block[node.block].add(node)
         self._by_node[node.node].add(node)
 
         kind = "intermediate"
@@ -240,7 +225,7 @@ class PartialEmbedding:
 
     def _invalidates_chosen(self, source, timeslot):
         """Checks if node sending would invalidate datarate of chosen action"""
-        for (u, v) in self._all_known_transmissions_at(timeslot):
+        for (u, v) in self._transmissions_at[timeslot]:
             new_capacity = self.known_capacity(
                 u.node,
                 v.node,
@@ -298,25 +283,19 @@ class PartialEmbedding:
             return False
         return True
 
-    def _link_possible(self, source, target):
-        # check if the relay node can support this block (e.g. can reach
-        # the sink)
-        impossible = self._impossible_embeddings[source.acting_as]
-        return not (target.relay and target.node in impossible)
-
     def _link_feasible(self, source, target, timeslot):
-        return (
-            self._link_feasible_in_timeslot(source, target, timeslot)
-            and self._link_necessary(source, target)
-            and self._link_possible(source, target)
-        )
+        return self._link_feasible_in_timeslot(
+            source, target, timeslot
+        ) and self._link_necessary(source, target)
 
-    def _node_can_carry(self, enode, timeslot):
-        if enode.block is None:
+    def _node_can_carry(self, node, block, timeslot):
+        """Weather or not a node can support the computation for a block
+        in a given timeslot"""
+        if block is None:
             return True
-        used = self._capacity_used[(enode.node, timeslot)]
-        needed = self.overlay.requirement(enode.block)
-        available = self.infra.capacity(enode.node)
+        used = self._capacity_used[(node, timeslot)]
+        needed = self.overlay.requirement(block)
+        available = self.infra.capacity(node)
         return used + needed <= available
 
     def _node_sending_other_data_in_timeslot(self, enode, timeslot):
@@ -343,7 +322,7 @@ class PartialEmbedding:
         if self._invalidates_chosen(source, timeslot):
             return False
 
-        if not self._node_can_carry(target, timeslot):
+        if not self._node_can_carry(target.node, target.block, timeslot):
             return False
 
         return True
@@ -380,15 +359,14 @@ class PartialEmbedding:
     def _remove_links_infeasible_in(self, timeslot):
         """Removes links that are no longer feasible within a
         timeslot"""
-        for (source, target, link_ts) in self.options():
-            if link_ts != timeslot:
-                continue
-
-            if not self._link_feasible_in_timeslot(source, target, link_ts):
-                self.remove_link(source, target, link_ts)
-
-    def _all_known_transmissions_at(self, timeslot):
-        return self._transmissions_at.get(timeslot, [])
+        not_chosen_in_timeslot = [
+            (source, target)
+            for (source, target, data) in self.graph.out_edges(data=True)
+            if not data["chosen"] and data["timeslot"] == timeslot
+        ]
+        for (source, target) in not_chosen_in_timeslot:
+            if not self._link_feasible_in_timeslot(source, target, timeslot):
+                self.remove_link(source, target, timeslot)
 
     def power_at_node(
         self, node: str, timeslot: int, additional_senders: Iterable[str] = ()
@@ -403,7 +381,7 @@ class PartialEmbedding:
         # We need to convert to watts for addition (log scale can only
         # multiply)
         received_power_watt = 0
-        transmissions = self._all_known_transmissions_at(timeslot)
+        transmissions = self._transmissions_at[timeslot]
 
         # use a set to make sure broadcasts aren't counted twice
         sending_nodes = {u.node for (u, v) in transmissions}
@@ -455,7 +433,7 @@ class PartialEmbedding:
             tuple(additional_senders),
             noise_floor_dbm,
         )
-        timeslot_cache = self._known_sinr_cache.get(timeslot, dict())
+        timeslot_cache = self._known_sinr_cache[timeslot]
         cached = timeslot_cache.get(index)
         if cached is None:
             received_signal_dbm = self.infra.power_received_dbm(
@@ -481,7 +459,7 @@ class PartialEmbedding:
             self._known_sinr_cache[timeslot] = timeslot_cache
         return cached
 
-    def add_outedges(self, enode: ENode, timeslot: int):
+    def _add_outedges(self, enode: ENode, timeslot: int):
         """Connect a new ENode to all its possible successors"""
         # avoid going in circles within a link embedding
         already_visited = [(enode.acting_as, enode.node)]
@@ -513,7 +491,7 @@ class PartialEmbedding:
         """Adds a new timeslot as an option"""
         self.used_timeslots += 1
         for enode in self.nodes():
-            self.add_outedges(enode, self.used_timeslots)
+            self._add_outedges(enode, self.used_timeslots)
 
     def take_action(self, source: ENode, sink: ENode, timeslot: int):
         """Take an action represented by an edge and update the graph"""
@@ -584,10 +562,7 @@ class PartialEmbedding:
                 self._num_outlinks_embedded[source.acting_as] += 1
             self.graph.nodes[source]["has_out"] = True
 
-        self._known_sinr_cache[timeslot] = dict()
-        self._transmissions_at[timeslot] = self._transmissions_at.get(
-            timeslot, []
-        ) + [(source, new_enode)]
+        self._transmissions_at[timeslot].append((source, new_enode))
 
         # determine if we're actually just updating an existing node
         # (normal case) or really creating a new node (a link-specific
@@ -596,7 +571,7 @@ class PartialEmbedding:
         if actually_new:
             self._by_block[new_enode.acting_as].add(new_enode)
             for ts in range(self.used_timeslots + 1):
-                self.add_outedges(new_enode, ts)
+                self._add_outedges(new_enode, ts)
 
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
@@ -612,14 +587,6 @@ class PartialEmbedding:
                 self._remove_already_completed_inlinks(enode)
         self._remove_links_infeasible_in(timeslot)
         return True
-
-    def chosen_subgraph(self):
-        """
-        Returns a subgraph containing only the already chosen components
-        """
-        edges = self.graph.edges(keys=True, data=True)
-        chosen_edges = {(u, v, k) for (u, v, k, d) in edges if d["chosen"]}
-        return self.graph.edge_subgraph(chosen_edges)
 
     def is_solvable(self):
         """Determines weather there is at least one valid path from each
@@ -731,152 +698,3 @@ class PartialEmbedding:
                 source = target
 
         return repr_graph
-
-
-def draw_embedding(
-    embedding: PartialEmbedding,
-    sources_color="red",
-    sink_color="yellow",
-    intermediates_color="green",
-):
-    """Draws a given PartialEmbedding"""
-    g = embedding.graph
-    shared_args = {
-        "G": g,
-        "node_size": 1000,
-        "pos": nx.shell_layout(embedding.graph),
-    }
-
-    node_list = g.nodes()
-    chosen = [node for node in node_list if g.nodes[node]["chosen"]]
-    not_chosen = [node for node in node_list if not g.nodes[node]["chosen"]]
-
-    def kind_color(node):
-        kind = g.nodes[node]["kind"]
-        color = intermediates_color
-        if kind == "source":
-            color = sources_color
-        elif kind == "sink":
-            color = sink_color
-        return color
-
-    nx.draw_networkx_nodes(
-        nodelist=not_chosen,
-        node_color=list(map(kind_color, not_chosen)),
-        node_shape="o",
-        **shared_args,
-    )
-    nx.draw_networkx_nodes(
-        nodelist=chosen,
-        node_color=list(map(kind_color, chosen)),
-        node_shape="s",
-        **shared_args,
-    )
-    nx.draw_networkx_labels(**shared_args)
-
-    possibilities = embedding.possibilities()
-
-    def chosen_color(edge):
-        data = g.edges[edge]
-        chosen = data["chosen"]
-        (source, target, _) = edge
-        if (source, target, data["timeslot"]) in possibilities:
-            return "blue"
-        if chosen:
-            return "black"
-        return "gray"
-
-    def chosen_width(edge):
-        data = g.edges[edge]
-        (source, target, _) = edge
-        chosen = data["chosen"]
-        possible = (source, target, data["timeslot"]) in possibilities
-
-        if chosen:
-            return 2
-        if possible:
-            return 1
-        return 0.1
-
-    edgelist = g.edges(keys=True)
-    nx.draw_networkx_edges(
-        **shared_args,
-        edgelist=edgelist,
-        edge_color=list(map(chosen_color, edgelist)),
-        width=list(map(chosen_width, edgelist)),
-    )
-
-    chosen_edges = [edge for edge in edgelist if g.edges[edge]["chosen"]]
-    # Networkx doesn't really deal with drawing multigraphs very well.
-    # Luckily for our presentation purposes its enough to pretend the
-    # graph isn't a multigraph, so throw away the edge keys.
-    labels = {
-        (u, v): g.edges[(u, v, k)]["timeslot"] for (u, v, k) in chosen_edges
-    }
-    nx.draw_networkx_edge_labels(
-        **shared_args, edgelist=chosen_edges, edge_labels=labels
-    )
-
-    timeslots = embedding.used_timeslots
-    complete = embedding.is_complete()
-    complete_str = " (complete)" if complete else ""
-    plt.gca().text(
-        -1,
-        -1,
-        f"{timeslots} timeslots{complete_str}",
-        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
-    )
-
-
-def _build_example():
-    # for quick testing
-    infra = InfrastructureNetwork()
-    n1 = infra.add_source(
-        pos=(0, 3), transmit_power_dbm=14, capacity=5, name="N1"
-    )
-    n2 = infra.add_source(
-        pos=(0, 1), transmit_power_dbm=8, capacity=8, name="N2"
-    )
-    n3 = infra.add_intermediate(
-        pos=(2, 2), transmit_power_dbm=32, capacity=20, name="N3"
-    )
-    n4 = infra.set_sink(
-        pos=(3, 0), transmit_power_dbm=10, capacity=10, name="N4"
-    )
-    n5 = infra.add_intermediate(
-        pos=(1, 2), transmit_power_dbm=20, capacity=42, name="N5"
-    )
-
-    overlay = OverlayNetwork()
-    b1 = overlay.add_source(requirement=5, name="B1")
-    b2 = overlay.add_source(requirement=5, name="B2")
-    b3 = overlay.add_intermediate(requirement=5, name="B3")
-    b4 = overlay.set_sink(requirement=5, name="B4")
-
-    overlay.add_link(b1, b3)
-    overlay.add_link(b2, b3)
-    overlay.add_link(b3, b4)
-    overlay.add_link(b2, b4)
-
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(b1, n1), (b2, n2)]
-    )
-
-    assert embedding.take_action(ENode(b1, n1), ENode(None, n5), 0)
-    assert embedding.take_action(
-        ENode(None, n5, ENode(b1, n1)), ENode(b3, n3), 1
-    )
-    assert embedding.take_action(ENode(b2, n2), ENode(None, n5), 2)
-    assert embedding.take_action(
-        ENode(None, n5, ENode(b2, n2)), ENode(b3, n3), 3
-    )
-    assert embedding.take_action(ENode(b2, n2), ENode(b4, n4), 2)
-    assert embedding.take_action(ENode(b3, n3), ENode(b4, n4), 4)
-    return embedding
-
-
-if __name__ == "__main__":
-    # pylint: disable=ungrouped-imports
-    from networkx.drawing.nx_pydot import write_dot
-
-    write_dot(_build_example().succinct_representation(), "result.dot")

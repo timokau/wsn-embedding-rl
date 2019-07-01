@@ -6,7 +6,8 @@ from matplotlib.widgets import Button, TextBox
 
 from infrastructure import draw_infra
 from overlay import draw_overlay
-from embedding import PartialEmbedding, draw_embedding
+from embedding import PartialEmbedding
+from draw_embedding import draw_embedding
 from generator import random_embedding, get_random_action
 
 
