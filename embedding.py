@@ -196,27 +196,27 @@ class PartialEmbedding:
             "min_datarate"
         ] = min_datarate
 
-    def add_edge(self, source: ENode, sink: ENode, timeslot: int):
+    def add_edge(self, source: ENode, target: ENode, timeslot: int):
         """Adds a possible connection to the graph if it is feasible"""
         may_represent = set()
         for (u, v) in self.overlay.graph.out_edges(nbunch=[source.acting_as]):
             if (u, v) not in self.embedded_links and (
-                sink.block is None or sink.acting_as == v
+                target.block is None or target.acting_as == v
             ):
                 may_represent.add((u, v))
 
         self.graph.add_edge(
             source,
-            sink,
+            target,
             chosen=False,
             timeslot=timeslot,
             # edges are uniquely identified by (source, target, timeslot)
             key=timeslot,
             may_represent=may_represent,
         )
-        self._compute_min_datarate(source, sink, timeslot)
-        if not self._link_feasible(source, sink, timeslot):
-            self.remove_link(source, sink, timeslot)
+        self._compute_min_datarate(source, target, timeslot)
+        if not self._link_feasible(source, target, timeslot):
+            self.remove_link(source, target, timeslot)
 
     def choose_edge(self, source: ENode, target: ENode, timeslot: int):
         """Marks a potential connection as chosen and updates the rest
@@ -287,10 +287,10 @@ class PartialEmbedding:
         self._add_relay_nodes()
         self.add_timeslot()
 
-    def remove_link(self, source: ENode, sink: ENode, timeslot: int):
-        """Removes a link given its source, sink and timeslot"""
-        assert not self.graph.edges[(source, sink, timeslot)]["chosen"]
-        self.graph.remove_edge(source, sink, timeslot)
+    def remove_link(self, source: ENode, target: ENode, timeslot: int):
+        """Removes a link given its source, target and timeslot"""
+        assert not self.graph.edges[(source, target, timeslot)]["chosen"]
+        self.graph.remove_edge(source, target, timeslot)
 
     def remove_node(self, node: ENode):
         """Removes a node if it is not chosen"""
