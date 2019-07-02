@@ -121,7 +121,7 @@ class PartialEmbedding:
     def _add_possible_intermediate_embeddings(self):
         for block in self.overlay.intermediates:
             for node in self.infra.graph.nodes():
-                self.add_node(ENode(block, node))
+                self.add_enode(ENode(block, node))
 
     def _embed_sources(self, source_mapping: List[Tuple[str, str]]):
         for (block, node) in source_mapping:
@@ -129,8 +129,8 @@ class PartialEmbedding:
             assert requirement <= self.infra.capacity(node)
             self._capacity_used[(node, 0)] += requirement
             embedding = ENode(block, node)
-            self.add_node(embedding)
-            self.choose_node(embedding)
+            self.add_enode(embedding)
+            self.choose_embedding(embedding)
 
     def _embed_sink(self):
         osink = self.overlay.sink
@@ -139,49 +139,49 @@ class PartialEmbedding:
         # connection
         assert self.overlay.requirement(osink) <= self.infra.capacity(isink)
         embedding = ENode(osink, isink)
-        self.add_node(embedding)
-        self.choose_node(embedding)
+        self.add_enode(embedding)
+        self.choose_embedding(embedding)
 
     def _add_relay_nodes(self):
         for node in self.infra.nodes():
             embedding = ENode(None, node)
-            self.add_node(embedding, relay=True)
+            self.add_enode(embedding, relay=True)
 
-    def add_node(self, node: ENode, relay=False):
+    def add_enode(self, enode: ENode, relay=False):
         """Adds a given ENode to the graph"""
-        self._by_block[node.block].add(node)
-        self._by_node[node.node].add(node)
+        self._by_block[enode.block].add(enode)
+        self._by_node[enode.node].add(enode)
 
         kind = "intermediate"
-        if node.block in self.overlay.sources:
+        if enode.block in self.overlay.sources:
             kind = "source"
-        elif node.block == self.overlay.sink:
+        elif enode.block == self.overlay.sink:
             kind = "sink"
 
-        self.graph.add_node(node, chosen=False, relay=relay, kind=kind)
+        self.graph.add_node(enode, chosen=False, relay=relay, kind=kind)
 
         # add the necessary edges
-        self._by_block[node.acting_as].add(node)
+        self._by_block[enode.acting_as].add(enode)
         for ts in range(self.used_timeslots + 1):
-            self._add_outedges(node, ts)
+            self._add_outedges(enode, ts)
 
-    def choose_node(self, node: ENode):
+    def choose_embedding(self, enode: ENode):
         """Marks an potential embedding as chosen and updates the rest
         of the graph with the consequences. Should only ever be done
         when the enode is the source, the sink or has an incoming chosen
         edge."""
-        if self.graph.node[node]["chosen"]:
+        if self.graph.node[enode]["chosen"]:
             return
 
-        self.graph.node[node]["chosen"] = True
+        self.graph.node[enode]["chosen"] = True
 
-        if not node.relay:
-            self.taken_embeddings[node.block] = node
+        if not enode.relay:
+            self.taken_embeddings[enode.block] = enode
 
             # remove other options for embedding this block
-            for option in list(self._by_block[node.block]):
-                if option != node:
-                    self.remove_node(option)
+            for option in list(self._by_block[enode.block]):
+                if option != enode:
+                    self.remove_enode(option)
 
     def _compute_min_datarate(self, source, target, timeslot):
         min_datarate = inf
@@ -297,13 +297,13 @@ class PartialEmbedding:
         assert not self.graph.edges[(source, target, timeslot)]["chosen"]
         self.graph.remove_edge(source, target, timeslot)
 
-    def remove_node(self, node: ENode):
+    def remove_enode(self, enode: ENode):
         """Removes a node if it is not chosen"""
-        if self.graph.nodes[node]["chosen"]:
+        if self.graph.nodes[enode]["chosen"]:
             return
-        self._by_block[node.acting_as].remove(node)
-        self._by_node[node.node].remove(node)
-        self.graph.remove_node(node)
+        self._by_block[enode.acting_as].remove(enode)
+        self._by_node[enode.node].remove(enode)
+        self.graph.remove_node(enode)
 
     def _invalidates_chosen(self, source, timeslot):
         """Checks if node sending would invalidate datarate of chosen action"""
@@ -566,10 +566,10 @@ class PartialEmbedding:
             target = ENode(
                 block=target.block, node=target.node, predecessor=source
             )
-            self.add_node(target)
+            self.add_enode(target)
             self.add_edge(source, target, timeslot)
 
-        self.choose_node(target)
+        self.choose_embedding(target)
         self.choose_edge(source, target, timeslot)
 
         if timeslot >= self.used_timeslots:
