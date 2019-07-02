@@ -215,8 +215,8 @@ class PartialEmbedding:
             may_represent=may_represent,
         )
         self._compute_min_datarate(source, target, timeslot)
-        if not self._link_feasible(source, target, timeslot):
-            self.remove_link(source, target, timeslot)
+        if not self._connection_feasible(source, target, timeslot):
+            self.remove_connection(source, target, timeslot)
 
     def choose_edge(self, source: ENode, target: ENode, timeslot: int):
         """Marks a potential connection as chosen and updates the rest
@@ -249,13 +249,14 @@ class PartialEmbedding:
                     pass
                 ts = d["timeslot"]
                 self._compute_min_datarate(u, v, ts)
-                if not self._link_feasible_in_timeslot(u, v, ts):
-                    self.remove_link(u, v, ts)
+                if not self._connection_feasible_in_timeslot(u, v, ts):
+                    self.remove_connection(u, v, ts)
 
         if source.relay:
-            # if the link is originating as a relay, the link was
-            # already counted once. It is only counted again if the path
-            # forks, i.e. this is the second outlink of the relay.
+            # if the connection is originating as a relay, the
+            # connection was already counted once. It is only counted
+            # again if the path forks, i.e. this is the second outedge
+            # of the relay.
             if self.graph.nodes[source].get("has_out", False):
                 self._num_outlinks_embedded[source.acting_as] += 1
             self.graph.nodes[source]["has_out"] = True
@@ -270,9 +271,9 @@ class PartialEmbedding:
 
         for enode in self._by_block[source.acting_as]:
             if not self._unembedded_outlinks_left(enode):
-                self._remove_other_outlinks_of(enode)
+                self._remove_other_connections_from(enode)
 
-        self._remove_links_infeasible_in(timeslot)
+        self._remove_connections_infeasible_in(timeslot)
 
     def _build_possibilities_graph(
         self, source_mapping: List[Tuple[str, str]]
@@ -283,8 +284,8 @@ class PartialEmbedding:
         self._add_relay_nodes()
         self.add_timeslot()
 
-    def remove_link(self, source: ENode, target: ENode, timeslot: int):
-        """Removes a link given its source, target and timeslot"""
+    def remove_connection(self, source: ENode, target: ENode, timeslot: int):
+        """Removes a connection given its source, target and timeslot"""
         assert not self.graph.edges[(source, target, timeslot)]["chosen"]
         self.graph.remove_edge(source, target, timeslot)
 
@@ -311,7 +312,7 @@ class PartialEmbedding:
         return False
 
     def _datarate_valid(self, source, target, timeslot):
-        """Checks if link datarate is valid"""
+        """Checks if connection datarate is valid"""
         thresh = self.graph.edges[(source, target, timeslot)]["min_datarate"]
         capacity = self.known_capacity(source.node, target.node, timeslot)
         return capacity >= thresh
@@ -335,7 +336,7 @@ class PartialEmbedding:
         return num_out_links_to_embed > embedded
 
     def _completes_already_embedded_link(self, source, target):
-        """Checks if a new link would doubly embed a link"""
+        """Checks if a new connection would doubly embed a link"""
         if target.relay or source.acting_as is None:
             return False
 
@@ -344,22 +345,22 @@ class PartialEmbedding:
 
         return False
 
-    def _link_already_taken(self, source, target):
+    def _connection_already_taken(self, source, target):
         return (source, target) in self._taken_edges.keys()
 
-    def _link_necessary(self, source, target):
+    def _connection_necessary(self, source, target):
         if self._completes_already_embedded_link(source, target):
             return False
         if not self._unembedded_outlinks_left(source):
             return False
-        if self._link_already_taken(source, target):
+        if self._connection_already_taken(source, target):
             return False
         return True
 
-    def _link_feasible(self, source, target, timeslot):
-        return self._link_feasible_in_timeslot(
+    def _connection_feasible(self, source, target, timeslot):
+        return self._connection_feasible_in_timeslot(
             source, target, timeslot
-        ) and self._link_necessary(source, target)
+        ) and self._connection_necessary(source, target)
 
     def _node_can_carry(self, node, block, timeslot):
         """Weather or not a node can support the computation for a block
@@ -385,7 +386,7 @@ class PartialEmbedding:
                 return True
         return False
 
-    def _link_feasible_in_timeslot(self, source, target, timeslot):
+    def _connection_feasible_in_timeslot(self, source, target, timeslot):
         if self._node_sending_other_data_in_timeslot(source, timeslot):
             return False
 
@@ -400,24 +401,24 @@ class PartialEmbedding:
 
         return True
 
-    def _remove_other_outlinks_of(self, enode):
-        """Removes not-chosen outlinks for an enode"""
+    def _remove_other_connections_from(self, enode):
+        """Removes not-chosen outedges for an enode"""
         for (u, v, k, d) in list(
             self.graph.out_edges(nbunch=[enode], keys=True, data=True)
         ):
             if not d["chosen"]:
-                self.remove_link(u, v, k)
+                self.remove_connection(u, v, k)
 
-    def _remove_links_between(self, source, target):
-        """Removes all remaining unchosen links between two ENodes"""
+    def _remove_connections_between(self, source, target):
+        """Removes all remaining unchosen connections between two ENodes"""
         for timeslot in range(self.used_timeslots + 1):
             if self.graph.has_edge(source, target, timeslot):
                 chosen = self.graph.edges[source, target, timeslot]["chosen"]
                 if not chosen:
-                    self.remove_link(source, target, timeslot)
+                    self.remove_connection(source, target, timeslot)
 
-    def _remove_links_infeasible_in(self, timeslot):
-        """Removes links that are no longer feasible within a
+    def _remove_connections_infeasible_in(self, timeslot):
+        """Removes connections that are no longer feasible within a
         timeslot"""
         not_chosen_in_timeslot = [
             (source, target)
@@ -425,8 +426,10 @@ class PartialEmbedding:
             if not data["chosen"] and data["timeslot"] == timeslot
         ]
         for (source, target) in not_chosen_in_timeslot:
-            if not self._link_feasible_in_timeslot(source, target, timeslot):
-                self.remove_link(source, target, timeslot)
+            if not self._connection_feasible_in_timeslot(
+                source, target, timeslot
+            ):
+                self.remove_connection(source, target, timeslot)
 
     def power_at_node(
         self, node: str, timeslot: int, additional_senders: Iterable[str] = ()
@@ -460,7 +463,7 @@ class PartialEmbedding:
         noise_floor_dbm: float = -80,
     ):
         """
-        Link capacity assuming only already chosen edges and the
+        Connection capacity assuming only already chosen edges and the
         currently considered edges are sending.
         """
         sinr = self.known_sinr(
@@ -547,11 +550,11 @@ class PartialEmbedding:
             return False
 
         # this should never be false, that would be a bug
-        assert self._link_feasible(source, target, timeslot)
+        assert self._connection_feasible(source, target, timeslot)
 
         self._taken_edges[(source, target)] = timeslot
         if target.relay:
-            self._remove_links_between(source, target)
+            self._remove_connections_between(source, target)
             target = ENode(
                 block=target.block, node=target.node, predecessor=source
             )
