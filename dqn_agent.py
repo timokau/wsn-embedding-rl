@@ -11,6 +11,7 @@ from graph_nets.demos.models import EncodeProcessDecode
 from networkx.drawing.nx_pydot import write_dot
 
 from gym_environment import WSNEnvironment
+from draw_embedding import succinct_representation
 from tf_util import ragged_boolean_mask
 
 NUM_PROCESSING_STEPS = 5
@@ -56,7 +57,7 @@ def save_episode_result_callback(lcl, _glb):
     episode = len(lcl["episode_rewards"])
     total_reward = round(lcl["episode_rewards"][-1])
     write_dot(
-        lcl["env"].env.succinct_representation(),
+        succinct_representation(lcl["env"].env),
         f"{logger.get_dir()}/result-{episode}-{-total_reward}.dot",
     )
 

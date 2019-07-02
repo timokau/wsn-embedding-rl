@@ -90,7 +90,7 @@ class PartialEmbedding:
         self._by_block = defaultdict(set)
         self._by_node = defaultdict(set)
         self._taken_edges = dict()
-        self._taken_embeddings = dict()
+        self.taken_embeddings = dict()
         self._num_outlinks_embedded = defaultdict(int)
         self._capacity_used = defaultdict(float)
         self._transmissions_at = defaultdict(list)
@@ -176,7 +176,7 @@ class PartialEmbedding:
         self.graph.node[node]["chosen"] = True
 
         if not node.relay:
-            self._taken_embeddings[node.block] = node
+            self.taken_embeddings[node.block] = node
 
             # remove other options for embedding this block
             for option in list(self._by_block[node.block]):
@@ -594,8 +594,8 @@ class PartialEmbedding:
         """Returns a mapping from links to paths"""
         result = dict()
         for (b1, b2) in self.embedded_links:
-            source_embedding = self._taken_embeddings[b1]
-            target_embedding = self._taken_embeddings[b2]
+            source_embedding = self.taken_embeddings[b1]
+            target_embedding = self.taken_embeddings[b2]
             cur = target_embedding
             path = []
             while cur != source_embedding:
@@ -608,65 +608,3 @@ class PartialEmbedding:
             path.reverse()
             result[(b1, b2)] = path
         return result
-
-    def succinct_representation(self, distance_scale=3):
-        """Returns a succinct representation of the embedding
-
-        Only takes into account the choices that were taken, not all
-        possibilities. As a result, it can represent much bigger graphs
-        than the draw_embedding representation.
-        """
-
-        repr_graph = nx.MultiDiGraph()
-        scale_factor = distance_scale / self.infra.min_node_distance()
-        blocks_in_node = defaultdict(set)
-
-        for enode in self.graph.nodes():
-            if self.graph.node[enode]["chosen"] and enode.block is not None:
-                blocks_in_node[enode.node].add(enode.block)
-
-        for infra_node in self.infra.nodes():
-            x, y = self.infra.position(infra_node)
-            x *= scale_factor
-            y *= scale_factor
-            capacity = round(self.infra.capacity(infra_node), 1)
-            power = round(self.infra.power(infra_node), 1)
-            block_strings = []
-            for block in blocks_in_node[infra_node]:
-                # block = f'<FONT COLOR="#0000AA">{block}</FONT>'
-                block_strings += [block]
-            embedded_str = f"< {', '.join(block_strings)} >"
-            style = "rounded"
-            if infra_node in self.infra.sources:
-                style = "bold"
-            elif infra_node == self.infra.sink:
-                style = "filled"
-            repr_graph.add_node(
-                infra_node,
-                shape="polygon",
-                style=style,
-                label=f"{infra_node}\n{capacity}cap\n{power}dBm",
-                xlabel=embedded_str,
-                pos=f"{x},{y}!",
-            )
-
-        for (link, path) in self.construct_link_mappings().items():
-            source = self._taken_embeddings[link[0]]
-            target = self._taken_embeddings[link[1]]
-            # first show the target link
-            repr_graph.add_edge(
-                source.node, target.node, style="dashed", color="blue"
-            )
-
-            # add the actual embedding
-            for (target, timeslot) in path:
-                sinr = self.known_sinr(source.node, target.node, timeslot)
-                repr_graph.add_edge(
-                    source.node,
-                    target.node,
-                    label=f"{link[0]}->{link[1]}\n{timeslot}",
-                    penwidth=sinr / 20,
-                )
-                source = target
-
-        return repr_graph

@@ -1,5 +1,7 @@
 """Functions for drawing embeddings, mostly for debugging"""
 
+from collections import defaultdict
+
 import networkx as nx
 from matplotlib import pyplot as plt
 
@@ -103,6 +105,69 @@ def draw_embedding(
     )
 
 
+def succinct_representation(embed, distance_scale=3):
+    """Returns a succinct representation of the embedding
+
+    Only takes into account the choices that were taken, not all
+    possibilities. As a result, it can represent much bigger graphs
+    than the draw_embedding representation.
+    """
+
+    repr_graph = nx.MultiDiGraph()
+    scale_factor = distance_scale / embed.infra.min_node_distance()
+    blocks_in_node = defaultdict(set)
+
+    for enode in embed.graph.nodes():
+        if embed.graph.node[enode]["chosen"] and enode.block is not None:
+            blocks_in_node[enode.node].add(enode.block)
+
+    for infra_node in embed.infra.nodes():
+        x, y = embed.infra.position(infra_node)
+        x *= scale_factor
+        y *= scale_factor
+        capacity = round(embed.infra.capacity(infra_node), 1)
+        power = round(embed.infra.power(infra_node), 1)
+        block_strings = []
+        for block in blocks_in_node[infra_node]:
+            # block = f'<FONT COLOR="#0000AA">{block}</FONT>'
+            block_strings += [block]
+        embedded_str = f"< {', '.join(block_strings)} >"
+        style = "rounded"
+        if infra_node in embed.infra.sources:
+            style = "bold"
+        elif infra_node == embed.infra.sink:
+            style = "filled"
+        repr_graph.add_node(
+            infra_node,
+            shape="polygon",
+            style=style,
+            label=f"{infra_node}\n{capacity}cap\n{power}dBm",
+            xlabel=embedded_str,
+            pos=f"{x},{y}!",
+        )
+
+    for (link, path) in embed.construct_link_mappings().items():
+        source = embed.taken_embeddings[link[0]]
+        target = embed.taken_embeddings[link[1]]
+        # first show the target link
+        repr_graph.add_edge(
+            source.node, target.node, style="dashed", color="blue"
+        )
+
+        # add the actual embedding
+        for (target, timeslot) in path:
+            sinr = embed.known_sinr(source.node, target.node, timeslot)
+            repr_graph.add_edge(
+                source.node,
+                target.node,
+                label=f"{link[0]}->{link[1]}\n{timeslot}",
+                penwidth=sinr / 20,
+            )
+            source = target
+
+    return repr_graph
+
+
 def _build_example():
     # for quick testing
     infra = InfrastructureNetwork()
@@ -154,4 +219,4 @@ if __name__ == "__main__":
     # pylint: disable=ungrouped-imports
     from networkx.drawing.nx_pydot import write_dot
 
-    write_dot(_build_example().succinct_representation(), "result.dot")
+    write_dot(succinct_representation(_build_example()), "result.dot")
