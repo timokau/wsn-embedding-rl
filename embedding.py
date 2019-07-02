@@ -196,8 +196,9 @@ class PartialEmbedding:
             "min_datarate"
         ] = min_datarate
 
-    def add_edge(self, source: ENode, target: ENode, timeslot: int):
-        """Adds a possible connection to the graph if it is feasible"""
+    def try_add_edge(self, source: ENode, target: ENode, timeslot: int):
+        """Tries to a possible connection to the graph if it is
+        feasible."""
         may_represent = set()
         for (u, v) in self.overlay.graph.out_edges(nbunch=[source.acting_as]):
             if (u, v) not in self.embedded_links and (
@@ -217,6 +218,13 @@ class PartialEmbedding:
         self._compute_min_datarate(source, target, timeslot)
         if not self._connection_feasible(source, target, timeslot):
             self.remove_connection(source, target, timeslot)
+            return False
+        return True
+
+    def add_edge(self, source: ENode, target: ENode, timeslot: int):
+        """Adds a possible connection to the graph. Fails if it is not
+        feasible."""
+        assert self.try_add_edge(source, target, timeslot)
 
     def choose_edge(self, source: ENode, target: ENode, timeslot: int):
         """Marks a potential connection as chosen and updates the rest
@@ -525,7 +533,7 @@ class PartialEmbedding:
             # determine when there are no more actions to take and the
             # embedding is "failed", circles make that hard.
             if (enode.acting_as, node) not in already_visited:
-                self.add_edge(enode, ENode(None, node), timeslot)
+                self.try_add_edge(enode, ENode(None, node), timeslot)
 
         out_edges = self.overlay.graph.out_edges(nbunch=[enode.acting_as])
 
@@ -536,7 +544,7 @@ class PartialEmbedding:
                     not option.relay
                     and (v, option.node) not in already_visited
                 ):
-                    self.add_edge(enode, option, timeslot)
+                    self.try_add_edge(enode, option, timeslot)
 
     def add_timeslot(self):
         """Adds a new timeslot as an option"""
