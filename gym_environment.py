@@ -172,7 +172,7 @@ class WSNEnvironment(gym.Env):
             self.reset()
             # make it easier for the network to figure out that resets
             # are bad
-            reward -= 100
+            reward -= 10
 
         ob = self._get_observation()
 
