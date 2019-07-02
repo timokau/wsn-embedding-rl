@@ -247,11 +247,10 @@ class PartialEmbedding:
                     d["may_represent"].remove(link)
                 except KeyError:
                     pass
-                if len(d["may_represent"]) == 0:
-                    ts = d["timeslot"]
-                    self._compute_min_datarate(u, v, ts)
-                    if not self._link_feasible_in_timeslot(u, v, ts):
-                        self.remove_link(u, v, ts)
+                ts = d["timeslot"]
+                self._compute_min_datarate(u, v, ts)
+                if not self._link_feasible_in_timeslot(u, v, ts):
+                    self.remove_link(u, v, ts)
 
         if source.relay:
             # if the link is originating as a relay, the link was

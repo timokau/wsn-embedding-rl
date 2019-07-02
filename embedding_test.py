@@ -1356,3 +1356,55 @@ def test_same_connection_not_possible_twice():
     take_action(embedding, "(B2-N2, N3, 0)")
     # this connection has already been taken; fork the relay instead
     assert not take_action(embedding, "(B2-N2, N3, 1)", expect_success=False)
+
+
+def test_datarate_adjusted_when_link_taken():
+    """Tests that the minimal datarate for a link is properly adjusted
+    when a link is taken"""
+    infra = InfrastructureNetwork()
+
+    N2 = infra.add_source(name="N2", pos=(2, 6), transmit_power_dbm=20)
+    N3 = infra.add_source(name="N3", pos=(9, 7), transmit_power_dbm=12)
+    _N6 = infra.add_intermediate(name="N6", pos=(7, 7), transmit_power_dbm=13)
+    _N5 = infra.add_intermediate(name="N5", pos=(3, 1), transmit_power_dbm=6)
+    _N4 = infra.add_intermediate(name="N4", pos=(7, 4), transmit_power_dbm=13)
+    _N1 = infra.set_sink(name="N1", pos=(4, 1), transmit_power_dbm=17)
+
+    overlay = OverlayNetwork()
+    B3 = overlay.add_source(name="B3")
+    B2 = overlay.add_source(name="B2")
+    B1 = overlay.set_sink(name="B1")
+    overlay.add_link(B2, B3, 25)
+    overlay.add_link(B2, B1)
+    overlay.add_link(B3, B1)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(B3, N3), (B2, N2)]
+    )
+
+    # this is rather involved, because thats what the regression
+    # manifested as and its hard to simplify (given that the noises have
+    # to add up just right)
+    for action in [
+        "(B2-N2, N1, 0)",
+        "(B2-N2, N4, 1)",
+        "((B2)-N4, N1, 2)",
+        "((B2)-N1, N4, 3)",
+        "((B2)-N1, N6, 4)",
+        "((B2)-N6, N3, 5)",
+        "((B2)-N4, N5, 6)",
+        "((B2)-N5, N6, 7)",
+    ]:
+        take_action(embedding, action)
+
+    assert "((B2)-N6, N3, 6)" in [str(p) for p in embedding.possibilities()]
+
+    # completing this link removes B2->B1 from the possible links,
+    # effectively setting the minimum datarate for all remaining
+    # connections from B2 from 0 to 25
+    take_action(embedding, "((B2)-N3, B1-N1, 8)")
+
+    # Note that this is (B2)-N6 with a different predecessor than the
+    # first one. It would be possible in principle, but does not meet
+    # the new datarate
+    assert not take_action(embedding, "((B2)-N6, N3, 6)", expect_success=False)
