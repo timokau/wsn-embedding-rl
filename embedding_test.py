@@ -1333,3 +1333,26 @@ def test_relay_circles_imossible():
     # n2 was already visited, circle
     assert not take_action(embedding, "((B2)-N4, N2, 1)", expect_success=False)
     # take_action("((B2)-N2, N4, 2)")
+
+
+def test_same_connection_not_possible_twice():
+    """Tests that the same connection cannot be taken twice"""
+    infra = InfrastructureNetwork()
+
+    N2 = infra.add_source(name="N2", pos=(2.3, 2.2), transmit_power_dbm=26.9)
+    _N3 = infra.add_intermediate(name="N3", pos=(0, 4), transmit_power_dbm=11)
+    _N1 = infra.set_sink(name="N1", pos=(9.4, 9.5), transmit_power_dbm=26.1)
+
+    overlay = OverlayNetwork()
+    B2 = overlay.add_source(name="B2")
+    B3 = overlay.add_intermediate(name="B3")
+    B1 = overlay.set_sink(name="B1")
+    overlay.add_link(B2, B1)
+    overlay.add_link(B2, B3)
+    overlay.add_link(B3, B1)
+
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(B2, N2)])
+
+    take_action(embedding, "(B2-N2, N3, 0)")
+    # this connection has already been taken; fork the relay instead
+    assert not take_action(embedding, "(B2-N2, N3, 1)", expect_success=False)

@@ -225,7 +225,6 @@ class PartialEmbedding:
         # pylint: disable=too-many-branches,too-many-statements
         assert self.graph.node[source]["chosen"]
         self.graph.edges[(source, target, timeslot)]["chosen"] = True
-        self._taken_edges[(source, target)] = timeslot
 
         self._capacity_used[
             (target.node, timeslot)
@@ -562,6 +561,7 @@ class PartialEmbedding:
         # this should never be false, that would be a bug
         assert self._link_feasible(source, target, timeslot)
 
+        self._taken_edges[(source, target)] = timeslot
         if target.relay:
             self._remove_links_between(source, target)
             target = ENode(
