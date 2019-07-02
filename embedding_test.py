@@ -1219,7 +1219,7 @@ def test_block_capacity():
     # pylint:disable=protected-access
     # The easiest way to test this, not too hard to adjust when
     # internals change.
-    assert embedding._capacity_used[(nin1, 0)] == 40
+    assert embedding._capacity_used[nin1] == 40
 
     # which means bin2 can no longer be embedded in it
     assert (eso, ENode(bin2, nin1), 0) not in possibilities

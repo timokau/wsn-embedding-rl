@@ -121,13 +121,10 @@ class PartialEmbedding:
     def _add_possible_intermediate_embeddings(self):
         for block in self.overlay.intermediates:
             for node in self.infra.graph.nodes():
-                self.add_enode(ENode(block, node))
+                self.try_add_enode(ENode(block, node))
 
     def _embed_sources(self, source_mapping: List[Tuple[str, str]]):
         for (block, node) in source_mapping:
-            requirement = self.overlay.requirement(block)
-            assert requirement <= self.infra.capacity(node)
-            self._capacity_used[(node, 0)] += requirement
             embedding = ENode(block, node)
             self.add_enode(embedding)
             self.choose_embedding(embedding)
@@ -135,9 +132,6 @@ class PartialEmbedding:
     def _embed_sink(self):
         osink = self.overlay.sink
         isink = self.infra.sink
-        # capacity used will be updated with the first incoming
-        # connection
-        assert self.overlay.requirement(osink) <= self.infra.capacity(isink)
         embedding = ENode(osink, isink)
         self.add_enode(embedding)
         self.choose_embedding(embedding)
@@ -147,8 +141,10 @@ class PartialEmbedding:
             embedding = ENode(None, node)
             self.add_enode(embedding, relay=True)
 
-    def add_enode(self, enode: ENode, relay=False):
+    def try_add_enode(self, enode: ENode, relay=False):
         """Adds a given ENode to the graph"""
+        if not self._node_can_carry(enode.node, enode.block):
+            return False
         self._by_block[enode.block].add(enode)
         self._by_node[enode.node].add(enode)
 
@@ -165,6 +161,12 @@ class PartialEmbedding:
         for ts in range(self.used_timeslots + 1):
             self._add_outedges(enode, ts)
 
+        return True
+
+    def add_enode(self, enode: ENode, relay=False):
+        """Adds an enode, failing if it is not possible"""
+        assert self.try_add_enode(enode, relay)
+
     def choose_embedding(self, enode: ENode):
         """Marks an potential embedding as chosen and updates the rest
         of the graph with the consequences. Should only ever be done
@@ -174,6 +176,14 @@ class PartialEmbedding:
             return
 
         self.graph.node[enode]["chosen"] = True
+        requirement = self.overlay.requirement(enode.block)
+        assert requirement <= self.infra.capacity(enode.node)
+        self._capacity_used[enode.node] += requirement
+        for other in list(self._by_node[enode.node]):
+            if self.graph.node[other]["chosen"]:
+                continue
+            if not self._node_can_carry(other.node, other.block):
+                self.remove_enode(other)
 
         if not enode.relay:
             self.taken_embeddings[enode.block] = enode
@@ -199,6 +209,10 @@ class PartialEmbedding:
     def try_add_edge(self, source: ENode, target: ENode, timeslot: int):
         """Tries to a possible connection to the graph if it is
         feasible."""
+        # networkx will silently create nodes, which can just as
+        # silently introduce bugs
+        assert self.graph.has_node(source)
+        assert self.graph.has_node(target)
         may_represent = set()
         for (u, v) in self.overlay.graph.out_edges(nbunch=[source.acting_as]):
             if (u, v) not in self.embedded_links and (
@@ -233,10 +247,6 @@ class PartialEmbedding:
         # pylint: disable=too-many-branches,too-many-statements
         assert self.graph.node[source]["chosen"]
         self.graph.edges[(source, target, timeslot)]["chosen"] = True
-
-        self._capacity_used[
-            (target.node, timeslot)
-        ] += self.overlay.requirement(target.block)
 
         # if this completes a link
         if not target.relay:
@@ -370,12 +380,12 @@ class PartialEmbedding:
             source, target, timeslot
         ) and self._connection_necessary(source, target)
 
-    def _node_can_carry(self, node, block, timeslot):
+    def _node_can_carry(self, node, block):
         """Weather or not a node can support the computation for a block
         in a given timeslot"""
         if block is None:
             return True
-        used = self._capacity_used[(node, timeslot)]
+        used = self._capacity_used[node]
         needed = self.overlay.requirement(block)
         available = self.infra.capacity(node)
         return used + needed <= available
@@ -402,9 +412,6 @@ class PartialEmbedding:
             return False
 
         if self._invalidates_chosen(source, timeslot):
-            return False
-
-        if not self._node_can_carry(target.node, target.block, timeslot):
             return False
 
         return True
