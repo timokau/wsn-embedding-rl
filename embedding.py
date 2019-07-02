@@ -271,11 +271,7 @@ class PartialEmbedding:
         for enode in self._by_block[source.acting_as]:
             if not self._unembedded_outlinks_left(enode):
                 self._remove_other_outlinks_of(enode)
-        if not target.relay:
-            # check for other options that would have completed the same
-            # link
-            for enode in self._by_block[target.acting_as]:
-                self._remove_already_completed_inlinks(enode)
+
         self._remove_links_infeasible_in(timeslot)
 
     def _build_possibilities_graph(
@@ -403,13 +399,6 @@ class PartialEmbedding:
             return False
 
         return True
-
-    def _remove_already_completed_inlinks(self, enode):
-        for (u, v, k, d) in list(
-            self.graph.in_edges(nbunch=[enode], keys=True, data=True)
-        ):
-            if not d["chosen"] and self._completes_already_embedded_link(u, v):
-                self.remove_link(u, v, k)
 
     def _remove_other_outlinks_of(self, enode):
         """Removes not-chosen outlinks for an enode"""
