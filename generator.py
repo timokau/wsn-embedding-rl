@@ -9,38 +9,39 @@ from overlay import random_overlay
 from embedding import PartialEmbedding
 
 
+# def random_embedding(max_embedding_nodes=32, rand=np.random):
+#     """Generate a random embedding that is guaranteed to be solvable"""
+#     result = _random_embedding(max_embedding_nodes, rand)
+#     return result
+
+
 def random_embedding(max_embedding_nodes=32, rand=np.random):
-    """Generate a random embedding that is guaranteed to be solvable"""
-    succeeded = False
-    while not succeeded:
-        try:
-            result = _random_embedding(max_embedding_nodes, rand)
-            succeeded = True
-        except AssertionError:
-            pass
-    return result
-
-
-def _random_embedding(max_embedding_nodes=32, rand=np.random):
     """Generate matching random infrastructure + overlay + embedding"""
-    infra = random_infrastructure(
-        rand, min_nodes=3, max_nodes=max_embedding_nodes / 3, num_sources=2
-    )
+    valid = False
+    while not valid:
+        infra = random_infrastructure(
+            rand, min_nodes=3, max_nodes=max_embedding_nodes / 3, num_sources=2
+        )
 
-    num_nodes = len(infra.graph.nodes())
-    max_blocks = min([num_nodes, floor(max_embedding_nodes / num_nodes)])
-    overlay = random_overlay(
-        rand,
-        min_blocks=3,
-        max_blocks=max_blocks,
-        num_sources=len(infra.sources),
-    )
-    source_mapping = dict()
-    source_blocks = list(overlay.sources)
-    source_nodes = list(infra.sources)
-    rand.shuffle(source_nodes)
-    source_mapping = list(zip(source_blocks, source_nodes))
-    embedding = PartialEmbedding(infra, overlay, source_mapping)
+        num_nodes = len(infra.graph.nodes())
+        max_blocks = min([num_nodes, floor(max_embedding_nodes / num_nodes)])
+        overlay = random_overlay(
+            rand,
+            min_blocks=3,
+            max_blocks=max_blocks,
+            num_sources=len(infra.sources),
+        )
+        source_mapping = dict()
+        source_blocks = list(overlay.sources)
+        source_nodes = list(infra.sources)
+        rand.shuffle(source_nodes)
+        source_mapping = list(zip(source_blocks, source_nodes))
+        valid = True
+        for (block, node) in source_mapping + [(overlay.sink, infra.sink)]:
+            if overlay.requirement(block) > infra.capacity(node):
+                valid = False
+        if valid:
+            embedding = PartialEmbedding(infra, overlay, source_mapping)
     return embedding
 
 
