@@ -73,7 +73,7 @@ class WSNEnvironment(gym.Env):
     def __init__(self):
         self.max_embedding_size = 50
         self.observation_space = GraphSpace(
-            global_dim=1, node_dim=3, edge_dim=3
+            global_dim=1, node_dim=3, edge_dim=5
         )
 
     def _query_actions(self):
@@ -114,17 +114,26 @@ class WSNEnvironment(gym.Env):
         # add the edges
         for (u, v, k, d) in embedding.graph.edges(data=True, keys=True):
             source_chosen = embedding.graph.nodes[u]["chosen"]
-            u = node_to_index[u]
-            v = node_to_index[v]
             chosen = d["chosen"]
             timeslot = d["timeslot"]
+            capacity = embedding.known_capacity(u.node, v.node, timeslot)
+            min_datarate = embedding.graph.edges[(u, v, timeslot)][
+                "min_datarate"
+            ]
             possible = not chosen and source_chosen
+
             input_graph.add_edge(
-                u,
-                v,
+                node_to_index[u],
+                node_to_index[v],
                 k,
                 features=np.array(
-                    [float(chosen), float(possible), float(timeslot)]
+                    [
+                        float(chosen),
+                        float(possible),
+                        float(timeslot),
+                        capacity,
+                        min_datarate,
+                    ]
                 ),
             )
 
