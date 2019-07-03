@@ -8,7 +8,7 @@ import gym
 from graph_nets import utils_np, utils_tf
 from graph_nets.graphs import GraphsTuple
 
-from generator import random_embedding
+from baseline_agent import validated_random
 
 
 class GraphSpace(gym.spaces.Space):
@@ -70,12 +70,11 @@ class WSNEnvironment(gym.Env):
     # That is what reset ist for.
     # pylint: disable=attribute-defined-outside-init
 
-    def __init__(self, max_embedding_size=50):
-        self.max_embedding_size = max_embedding_size
+    def __init__(self):
+        self.max_embedding_size = 50
         self.observation_space = GraphSpace(
             global_dim=1, node_dim=3, edge_dim=3
         )
-        self.reset()
 
     def _query_actions(self):
         self.actions = self.env.possibilities()
@@ -160,16 +159,10 @@ class WSNEnvironment(gym.Env):
         done = self.env.is_complete()
 
         if not done and len(self.env.possibilities()) == 0:
-            # This either means we've run into a rut or the problem
-            # instance is not solvable. Generate a new problem instance
-            # in either case, since we can't reliably differentiate
-            # between them.
-
-            # In theory, the network could learn to just reset itself
-            # when it encounters a difficult problem. Reward
-            # normalization could help with that. May not be a problem
-            # in practice.
-            self.reset()
+            # Failed to solve the problem, retry without ending the
+            # episode (thus penalizing the failed attempt).
+            self.env = self.env.reset()
+            self.restarts += 1
             # make it easier for the network to figure out that resets
             # are bad
             reward -= 10
@@ -184,8 +177,17 @@ class WSNEnvironment(gym.Env):
         result = gym.spaces.Discrete(len(self.actions))
         return result
 
-    def reset(self):
-        self.env = random_embedding(self.max_embedding_size, np.random)
+    # optional argument is fine
+    # pylint: disable=arguments-differ
+    def reset(self, embedding=None):
+        self.baseline = None
+        if embedding is None:
+            (embedding, baseline) = validated_random(
+                self.max_embedding_size, np.random
+            )
+            self.baseline = baseline
+        self.env = embedding
+        self.restarts = 0
         self.last_translation_dict = dict()
         return self._get_observation()
 

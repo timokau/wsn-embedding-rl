@@ -3,10 +3,21 @@ from math import inf
 import random
 import time
 import numpy as np
-from gym_environment import WSNEnvironment
+import gym_environment
+from generator import random_embedding
 
 
-def act(graph_tuple):
+def validated_random(max_embedding_nodes=32, rand=np.random):
+    """Returns a random embedding that is guaranteed to be solvable
+    together with a baseline solution"""
+    while True:
+        emb = random_embedding(max_embedding_nodes, rand)
+        (_, baseline) = play_episode(emb, max_restarts=10)
+        if baseline is not None:
+            return (emb.reset(), baseline)
+
+
+def act(graph_tuple, randomness=0):
     """Take a semi-greedy action"""
     min_ts_actions = None
     possible_actions = []
@@ -29,8 +40,8 @@ def act(graph_tuple):
             i += 1
 
     # break out of reset loops by acting random every once in a while
-    # if random.random() < 0.01:
-    #     return random.choice(range(i))
+    if random.random() < randomness:
+        return random.choice(range(i))
 
     preferred_actions = min_ts_actions
 
@@ -49,35 +60,41 @@ def act(graph_tuple):
     return random.choice(preferred_actions)
 
 
-def play_episode(env):
+def play_episode(embedding, max_restarts=None):
     """Play an entire episode and report the reward"""
-    obs = env.reset()
+    env = gym_environment.WSNEnvironment()
+    obs = env.reset(embedding)
     total_reward = 0
-    while True:
-        action = act(obs)
+    while max_restarts is None or env.restarts < max_restarts:
+        # gradually increase randomness up to 100%
+        randomness = env.restarts / (max_restarts - 1)
+        action = act(obs, randomness=randomness)
         new_obs, rew, done, _ = env.step(action)
         total_reward += rew
         obs = new_obs
         if done:
-            print(total_reward)
-            return total_reward
+            return (total_reward, env.env.used_timeslots)
+    return (None, None)
 
 
-def evaluate(env, episodes=100):
+def evaluate(episodes=100):
     """Evaluate over many episodes"""
     rewards = []
     times = []
     for _ in range(episodes):
         before = time.time()
-        rewards.append(play_episode(env))
+        emb = random_embedding()
+        (reward, _timeslots) = play_episode(emb, 100)
+        if reward is not None:
+            rewards.append(reward)
+            print(rewards[-1])
         times.append(time.time() - before)
     return rewards, times
 
 
 def main():
     """Run the experiment"""
-    env = WSNEnvironment()
-    rewards, times = evaluate(env, 100)
+    rewards, times = evaluate(100)
     print("=====")
     print(f"Mean reward: {np.mean(rewards)}")
     print(f"Mean time: {np.mean(times)}")

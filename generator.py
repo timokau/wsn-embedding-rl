@@ -9,12 +9,6 @@ from overlay import random_overlay
 from embedding import PartialEmbedding
 
 
-# def random_embedding(max_embedding_nodes=32, rand=np.random):
-#     """Generate a random embedding that is guaranteed to be solvable"""
-#     result = _random_embedding(max_embedding_nodes, rand)
-#     return result
-
-
 def random_embedding(max_embedding_nodes=32, rand=np.random):
     """Generate matching random infrastructure + overlay + embedding"""
     valid = False
