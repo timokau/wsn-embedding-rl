@@ -6,13 +6,13 @@ from pycallgraph.output import GraphvizOutput
 from generator import random_embedding, get_random_action
 
 
-def main(size=20, time_seconds=60):
+def main(time_seconds=60):
     """Keep randomly exploring embeddings"""
     total_before = time.time()
     while True:
         action_list = []
         before = time.time()
-        embedding = random_embedding(size)
+        embedding = random_embedding()
         while True:
             try:
                 complete = embedding.is_complete()
@@ -46,9 +46,9 @@ def profile(size, time_seconds=60):
     config.trace_filter = GlobbingFilter(exclude=["pycallgraph.*"])
     graphviz = GraphvizOutput(output_file=f"pc-{size}.png")
     with PyCallGraph(output=graphviz, config=config):
-        main(size, time_seconds)
+        main(time_seconds)
 
 
 if __name__ == "__main__":
-    main(20, 99999999)
+    main(99999999)
     # profile(20, 600)

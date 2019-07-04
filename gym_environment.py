@@ -8,7 +8,7 @@ import gym
 from graph_nets import utils_np, utils_tf
 from graph_nets.graphs import GraphsTuple
 
-from baseline_agent import validated_random
+from generator import validated_random
 
 
 class GraphSpace(gym.spaces.Space):
@@ -191,9 +191,7 @@ class WSNEnvironment(gym.Env):
     def reset(self, embedding=None):
         self.baseline = None
         if embedding is None:
-            (embedding, baseline) = validated_random(
-                self.max_embedding_size, np.random
-            )
+            (embedding, baseline) = validated_random()
             self.baseline = baseline
         self.env = embedding
         self.restarts = 0

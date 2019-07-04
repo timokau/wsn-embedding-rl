@@ -3,7 +3,6 @@
 from enum import Enum
 from math import inf
 import networkx as nx
-import numpy as np
 import wsignal
 
 
@@ -166,62 +165,6 @@ class InfrastructureNetwork:
         return f'(name="{node}", pos={pos}, transmit_power_dbm={tp})'
 
 
-def random_infrastructure(
-    rand,
-    min_nodes=2,
-    max_nodes=10,
-    num_sources=1,
-    width=10,
-    height=10,
-    mean_capacity=10,
-):
-    """
-    Generates a randomized infrastructure with uniformly distributed
-    nodes in 2d space.
-    """
-    assert num_sources < min_nodes
-
-    def rand_power():
-        # FCC limit for a wifi router is 36dBm
-        mean_transmit_power_dbm = 20
-        return rand.normal(mean_transmit_power_dbm, 10)
-
-    def rand_capacity():
-        return rand.exponential(mean_capacity)
-
-    # select a node count uniformly distributed over the given interval
-    num_nodes = rand.randint(min_nodes, max_nodes + 1)
-
-    # place nodes uniformly at random
-    node_positions = rand.uniform(
-        low=(0, 0), high=(width, height), size=(num_nodes, 2)
-    )
-
-    infra = InfrastructureNetwork()
-
-    infra.set_sink(
-        pos=node_positions[0],
-        transmit_power_dbm=rand_power(),
-        capacity=rand_capacity(),
-    )
-
-    for source_pos in node_positions[1 : num_sources + 1]:
-        infra.add_source(
-            pos=source_pos,
-            transmit_power_dbm=rand_power(),
-            capacity=rand_capacity(),
-        )
-
-    for node_pos in node_positions[num_sources + 2 :]:
-        infra.add_intermediate(
-            pos=node_pos,
-            transmit_power_dbm=rand_power(),
-            capacity=rand_capacity(),
-        )
-
-    return infra
-
-
 def draw_infra(
     infra: InfrastructureNetwork,
     sources_color="red",
@@ -249,7 +192,9 @@ def draw_infra(
 
 
 if __name__ == "__main__":
-    draw_infra(random_infrastructure(np.random))
+    from generator import random_infrastructure
+
+    draw_infra(random_infrastructure(2))
     from matplotlib import pyplot as plt
 
     plt.show()

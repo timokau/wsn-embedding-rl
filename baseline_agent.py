@@ -4,17 +4,7 @@ import random
 import time
 import numpy as np
 import gym_environment
-from generator import random_embedding
-
-
-def validated_random(max_embedding_nodes=32, rand=np.random):
-    """Returns a random embedding that is guaranteed to be solvable
-    together with a baseline solution"""
-    while True:
-        emb = random_embedding(max_embedding_nodes, rand)
-        (_, baseline) = play_episode(emb, max_restarts=10)
-        if baseline is not None:
-            return (emb.reset(), baseline)
+import generator
 
 
 def act(graph_tuple, randomness=0):
@@ -57,7 +47,8 @@ def act(graph_tuple, randomness=0):
     if len(not_relay_actions) > 0:
         preferred_actions = not_relay_actions
 
-    return random.choice(preferred_actions)
+    choice = random.choice(preferred_actions)
+    return choice
 
 
 def play_episode(embedding, max_restarts=None):
@@ -83,7 +74,7 @@ def evaluate(episodes=100):
     times = []
     for _ in range(episodes):
         before = time.time()
-        emb = random_embedding()
+        emb = generator.random_embedding()
         (reward, _timeslots) = play_episode(emb, 100)
         if reward is not None:
             rewards.append(reward)
