@@ -25,6 +25,7 @@ in pkgs.mkShell {
       graph_nets
       matplotlib
       pydot
+      ipython
     ]))
   ];
   shellHook = ''
