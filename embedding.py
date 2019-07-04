@@ -404,8 +404,23 @@ class PartialEmbedding:
                 return True
         return False
 
+    def _node_receiving_data_in_timeslot(self, enode, timeslot):
+        """We work on the half-duplex assumption: sending and receiving
+        is mutually exclusive."""
+        for u, v, data in self.graph.in_edges(
+            nbunch=self._by_node[enode.node], data=True
+        ):
+            # loops are fine, they do not actually involve any sending
+            is_loop = u.node == v.node
+            if data["timeslot"] == timeslot and data["chosen"] and not is_loop:
+                return True
+        return False
+
     def _connection_feasible_in_timeslot(self, source, target, timeslot):
         if self._node_sending_other_data_in_timeslot(source, timeslot):
+            return False
+
+        if self._node_receiving_data_in_timeslot(source, timeslot):
             return False
 
         if not self._datarate_valid(source, target, timeslot):
