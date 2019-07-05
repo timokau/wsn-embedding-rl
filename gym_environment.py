@@ -1,5 +1,9 @@
 """Gym environment wrapper for a Wireless Sensor Network"""
 
+import multiprocessing
+import time
+from queue import Queue
+
 import numpy as np
 import networkx as nx
 import tensorflow as tf
@@ -8,7 +12,13 @@ import gym
 from graph_nets import utils_np, utils_tf
 from graph_nets.graphs import GraphsTuple
 
-from generator import validated_random
+import generator
+
+BATCH_SIZE = multiprocessing.cpu_count() * 16
+
+# ignores its argument
+def _producer(_):
+    return generator.validated_random()
 
 
 class GraphSpace(gym.spaces.Space):
@@ -69,12 +79,16 @@ class WSNEnvironment(gym.Env):
 
     # That is what reset ist for.
     # pylint: disable=attribute-defined-outside-init
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self):
-        self.max_embedding_size = 50
         self.observation_space = GraphSpace(
             global_dim=1, node_dim=3, edge_dim=5
         )
+
+        # optimize reset
+        self._instance_queue = Queue()
+        self._pool = None
 
     def _query_actions(self):
         self.actions = self.env.possibilities()
@@ -186,12 +200,25 @@ class WSNEnvironment(gym.Env):
         result = gym.spaces.Discrete(len(self.actions))
         return result
 
+    def _new_instance(self):
+        """Transparently uses multiprocessing"""
+        if self._pool is None:
+            self._pool = multiprocessing.Pool()
+        if self._instance_queue.empty():
+            before = time.time()
+            print(f"Refilling queue ({round(before)})")
+            for product in self._pool.map(_producer, range(BATCH_SIZE)):
+                self._instance_queue.put(product)
+            elapsed = time.time() - before
+            print(f"Refilling queue took {round(elapsed)}s")
+        return self._instance_queue.get()
+
     # optional argument is fine
     # pylint: disable=arguments-differ
     def reset(self, embedding=None):
         self.baseline = None
         if embedding is None:
-            (embedding, baseline) = validated_random()
+            (embedding, baseline) = self._new_instance()
             self.baseline = baseline
         self.env = embedding
         self.restarts = 0

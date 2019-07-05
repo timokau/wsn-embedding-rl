@@ -1,5 +1,7 @@
 """Generation of new problem instances"""
 
+import time
+
 import numpy as np
 import networkx as nx
 
@@ -73,11 +75,14 @@ def validated_random():
     """Returns a random embedding that is guaranteed to be solvable
     together with a baseline solution"""
     t = 0
+    before = time.time()
     while True:
         t += 1
         emb = random_embedding()
         (_, baseline) = baseline_agent.play_episode(emb, max_restarts=10)
         if baseline is not None:
+            elapsed = time.time() - before
+            print(f"Generated (try {t}, {round(elapsed ,1)}s)")
             return (emb.reset(), baseline)
 
 

@@ -10,7 +10,7 @@ from baselines.deepq import learn
 from graph_nets.demos.models import EncodeProcessDecode
 from networkx.drawing.nx_pydot import write_dot
 
-from gym_environment import WSNEnvironment
+import gym_environment
 from draw_embedding import succinct_representation
 from tf_util import ragged_boolean_mask
 
@@ -64,7 +64,7 @@ def save_episode_result_callback(lcl, _glb):
 
 def main():
     """Run the training"""
-    env = WSNEnvironment()
+    env = gym_environment.WSNEnvironment()
     learn(
         env,
         deepq_graph_network,
