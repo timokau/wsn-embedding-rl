@@ -74,16 +74,24 @@ def random_embedding():
 def validated_random():
     """Returns a random embedding that is guaranteed to be solvable
     together with a baseline solution"""
-    t = 0
-    before = time.time()
     while True:
-        t += 1
+        before = time.time()
         emb = random_embedding()
-        (_, baseline) = baseline_agent.play_episode(emb, max_restarts=10)
+        (reward, baseline) = baseline_agent.play_episode(emb, max_restarts=10)
+        elapsed = round(time.time() - before, 1)
+        nodes = len(emb.infra.nodes())
+        blocks = len(emb.overlay.blocks())
+        links = len(emb.overlay.links())
         if baseline is not None:
-            elapsed = time.time() - before
-            print(f"Generated (try {t}, {round(elapsed ,1)}s)")
+            # pylint: disable=line-too-long
+            print(
+                f"Generated ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links, {reward})"
+            )
             return (emb.reset(), baseline)
+        # pylint: disable=line-too-long
+        print(
+            f"Failed    ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links, {reward})"
+        )
 
 
 def _random_infrastructure(
