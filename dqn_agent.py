@@ -74,6 +74,7 @@ def main():
         prioritized=True,
         print_freq=1,
         checkpoint_freq=1000,
+        total_timesteps=1000000,
         checkpoint_path=logger.get_dir(),
         after_step_callback=save_episode_result_callback,
     )
