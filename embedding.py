@@ -394,25 +394,21 @@ class PartialEmbedding:
         # the same embedding can send multiple times within a timeslot
         # (broadcasting results), but others cannot (which would send
         # other data)
-        other_embeddings = self._by_node[enode.node] - set([enode])
-        for u, v, data in self.graph.out_edges(
-            nbunch=other_embeddings, data=True
-        ):
-            # loops are fine, they do not actually involve any sending
+        for ((u, v), t) in self._taken_edges.items():
+            # loops within a node are okay
             is_loop = u.node == v.node
-            if data["timeslot"] == timeslot and data["chosen"] and not is_loop:
+            same_node = u.node == enode.node
+            different_data = u.acting_as != enode.acting_as
+            if same_node and different_data and t == timeslot and not is_loop:
                 return True
         return False
 
-    def _node_receiving_data_in_timeslot(self, enode, timeslot):
+    def _node_receiving_data_in_timeslot(self, node, timeslot):
         """We work on the half-duplex assumption: sending and receiving
         is mutually exclusive."""
-        for u, v, data in self.graph.in_edges(
-            nbunch=self._by_node[enode.node], data=True
-        ):
-            # loops are fine, they do not actually involve any sending
-            is_loop = u.node == v.node
-            if data["timeslot"] == timeslot and data["chosen"] and not is_loop:
+        for ((u, v), t) in self._taken_edges.items():
+            # loops within a node are okay
+            if v.node == node and t == timeslot and u.node != v.node:
                 return True
         return False
 
@@ -420,7 +416,7 @@ class PartialEmbedding:
         if self._node_sending_other_data_in_timeslot(source, timeslot):
             return False
 
-        if self._node_receiving_data_in_timeslot(source, timeslot):
+        if self._node_receiving_data_in_timeslot(source.node, timeslot):
             return False
 
         if not self._datarate_valid(source, target, timeslot):
