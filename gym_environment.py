@@ -200,6 +200,7 @@ class WSNEnvironment(gym.Env):
         if self._pool is None:
             # reserver one cpu for the actual training
             cpus = max(1, multiprocessing.cpu_count() - 1)
+            cpus = min(8, cpus)
             self._pool = multiprocessing.Pool(cpus)
 
         # similar to a lazy infinite imap; preserves the order of the
