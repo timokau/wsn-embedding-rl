@@ -72,7 +72,7 @@ def main():
         as_is=True,
         dueling=False,
         prioritized=True,
-        print_freq=10,
+        print_freq=1,
         checkpoint_freq=1000,
         checkpoint_path=logger.get_dir(),
         after_step_callback=save_episode_result_callback,
