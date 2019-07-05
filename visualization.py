@@ -118,7 +118,9 @@ class Visualization:
 
 
 def _main():
-    embedding = random_embedding()
+    import numpy as np
+
+    embedding = random_embedding(rand=np.random)
     Visualization(embedding)
     plt.show()
 

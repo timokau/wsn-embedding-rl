@@ -2,6 +2,7 @@
 
 from enum import Enum
 from matplotlib import pyplot as plt
+import numpy as np
 import networkx as nx
 
 
@@ -132,5 +133,5 @@ def draw_overlay(
 if __name__ == "__main__":
     from generator import random_overlay
 
-    draw_overlay(random_overlay(2))
+    draw_overlay(random_overlay(2, rand=np.random))
     plt.show()

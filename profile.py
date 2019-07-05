@@ -1,6 +1,7 @@
 """Profiling and testing (through random actions) of the model
 implementation"""
 import time
+import numpy as np
 from pycallgraph import PyCallGraph, Config, GlobbingFilter
 from pycallgraph.output import GraphvizOutput
 from generator import random_embedding, get_random_action
@@ -12,7 +13,7 @@ def main(time_seconds=60):
     while True:
         action_list = []
         before = time.time()
-        embedding = random_embedding()
+        embedding = random_embedding(np.random)
         while True:
             try:
                 complete = embedding.is_complete()

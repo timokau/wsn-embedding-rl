@@ -2,6 +2,7 @@
 
 from enum import Enum
 from math import inf
+import numpy as np
 import networkx as nx
 import wsignal
 
@@ -194,7 +195,7 @@ def draw_infra(
 if __name__ == "__main__":
     from generator import random_infrastructure
 
-    draw_infra(random_infrastructure(2))
+    draw_infra(random_infrastructure(2, rand=np.random))
     from matplotlib import pyplot as plt
 
     plt.show()

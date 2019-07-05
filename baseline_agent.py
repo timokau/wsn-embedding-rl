@@ -74,7 +74,7 @@ def evaluate(episodes=100):
     times = []
     for _ in range(episodes):
         before = time.time()
-        emb = generator.random_embedding()
+        emb = generator.random_embedding(rand=np.random)
         (reward, _timeslots) = play_episode(emb, 100)
         if reward is not None:
             rewards.append(reward)

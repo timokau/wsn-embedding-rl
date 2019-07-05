@@ -16,10 +16,6 @@ import generator
 
 BATCH_SIZE = multiprocessing.cpu_count() * 16
 
-# ignores its argument
-def _producer(_):
-    return generator.validated_random()
-
 
 class GraphSpace(gym.spaces.Space):
     """Graph space for usage with graph_nets"""
@@ -207,7 +203,17 @@ class WSNEnvironment(gym.Env):
         if self._instance_queue.empty():
             before = time.time()
             print(f"Refilling queue ({round(before)})")
-            for product in self._pool.map(_producer, range(BATCH_SIZE)):
+            # generate the random states centrally to guarantee
+            # reproducibility and work around multiprocessing RNG
+            # concerns
+            random_states = [
+                np.random.RandomState(np.random.randint(0, 2 ** 32))
+                for _ in range(BATCH_SIZE)
+            ]
+
+            for product in self._pool.map(
+                generator.validated_random, random_states
+            ):
                 self._instance_queue.put(product)
             elapsed = time.time() - before
             print(f"Refilling queue took {round(elapsed)}s")

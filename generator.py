@@ -11,14 +11,12 @@ from embedding import PartialEmbedding
 import baseline_agent
 
 
-def random_infrastructure(num_sources: int):
+def random_infrastructure(num_sources: int, rand):
     """Generates a randomize infrastructure with default parameters
 
     The resulting nodes will be distributed uniformly at random in a
     25m x 25m room.
     """
-    rand = np.random
-
     num_intermediates = round(rand.exponential(10))
     pos_dist = lambda: rand.uniform(low=(0, 0), high=(25, 25))
     capacity_dist = lambda: rand.exponential(10)
@@ -31,12 +29,10 @@ def random_infrastructure(num_sources: int):
     )
 
 
-def random_overlay(num_sources: int):
+def random_overlay(num_sources: int, rand):
     """Generates a randomized overlay graph with default parameters"""
-    rand = np.random
-
     num_intermediates = round(rand.exponential(6))
-    pairwise_connection = lambda: rand.random() < 0.01
+    pairwise_connection = lambda: rand.rand() < 0.01
     compute_requirement_dist = lambda: rand.exponential(5)
     # datarate in bits/s with an assumed bandwidth of 1 (i.e. equivalent
     # to SINRth)
@@ -52,14 +48,14 @@ def random_overlay(num_sources: int):
     )
 
 
-def random_embedding():
+def random_embedding(rand):
     """Generate matching random infrastructure + overlay + embedding"""
     # at least one source, has to match between infra and overlay
-    num_sources = round(np.random.exponential(2)) + 1
+    num_sources = round(rand.exponential(2)) + 1
 
     while True:
-        infra = random_infrastructure(num_sources)
-        overlay = random_overlay(num_sources)
+        infra = random_infrastructure(num_sources, rand)
+        overlay = random_overlay(num_sources, rand)
         source_mapping = list(zip(list(overlay.sources), list(infra.sources)))
 
         # make sure all sources and the sink are actually embeddable
@@ -71,12 +67,12 @@ def random_embedding():
             return PartialEmbedding(infra, overlay, source_mapping)
 
 
-def validated_random():
+def validated_random(rand):
     """Returns a random embedding that is guaranteed to be solvable
     together with a baseline solution"""
     while True:
         before = time.time()
-        emb = random_embedding()
+        emb = random_embedding(rand)
         (reward, baseline) = baseline_agent.play_episode(emb, max_restarts=10)
         elapsed = round(time.time() - before, 1)
         nodes = len(emb.infra.nodes())
@@ -223,4 +219,4 @@ def get_random_action(embedding: PartialEmbedding, rand=np.random):
 
 
 if __name__ == "__main__":
-    print(validated_random())
+    print(validated_random(rand=np.random))
