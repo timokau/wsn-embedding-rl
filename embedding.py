@@ -248,6 +248,8 @@ class PartialEmbedding:
         # pylint: disable=too-many-branches,too-many-statements
         assert self.graph.node[source]["chosen"]
         self.graph.edges[(source, target, timeslot)]["chosen"] = True
+        # can change all sinr values for this timeslot
+        self._known_sinr_cache[timeslot] = dict()
 
         # if this completes a link
         if not target.relay:
