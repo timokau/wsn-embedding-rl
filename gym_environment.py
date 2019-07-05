@@ -1,7 +1,6 @@
 """Gym environment wrapper for a Wireless Sensor Network"""
 
 import multiprocessing
-import time
 from queue import Queue
 
 import numpy as np
@@ -14,7 +13,7 @@ from graph_nets.graphs import GraphsTuple
 
 import generator
 
-BATCH_SIZE = multiprocessing.cpu_count() * 16
+QUEUE_SIZE = 128
 
 
 class GraphSpace(gym.spaces.Space):
@@ -83,7 +82,7 @@ class WSNEnvironment(gym.Env):
         )
 
         # optimize reset
-        self._instance_queue = Queue()
+        self._instance_queue = Queue(QUEUE_SIZE)
         self._pool = None
 
     def _query_actions(self):
@@ -199,25 +198,20 @@ class WSNEnvironment(gym.Env):
     def _new_instance(self):
         """Transparently uses multiprocessing"""
         if self._pool is None:
-            self._pool = multiprocessing.Pool()
-        if self._instance_queue.empty():
-            before = time.time()
-            print(f"Refilling queue ({round(before)})")
-            # generate the random states centrally to guarantee
-            # reproducibility and work around multiprocessing RNG
-            # concerns
-            random_states = [
-                np.random.RandomState(np.random.randint(0, 2 ** 32))
-                for _ in range(BATCH_SIZE)
-            ]
+            # reserver one cpu for the actual training
+            cpus = max(1, multiprocessing.cpu_count() - 1)
+            self._pool = multiprocessing.Pool(cpus)
 
-            for product in self._pool.map(
-                generator.validated_random, random_states
-            ):
-                self._instance_queue.put(product)
-            elapsed = time.time() - before
-            print(f"Refilling queue took {round(elapsed)}s")
-        return self._instance_queue.get()
+        # similar to a lazy infinite imap; preserves the order of the
+        # generated elements to prevent under-representation of long
+        # running ones.
+        while not self._instance_queue.full():
+            rand = np.random.RandomState(np.random.randint(0, 2 ** 32))
+            job = self._pool.map_async(generator.validated_random, [rand])
+            self._instance_queue.put_nowait(job)
+
+        next_job = self._instance_queue.get()
+        return next_job.get()[0]
 
     # optional argument is fine
     # pylint: disable=arguments-differ
