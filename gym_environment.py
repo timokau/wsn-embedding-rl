@@ -211,6 +211,8 @@ class WSNEnvironment(gym.Env):
             self._instance_queue.put_nowait(job)
 
         next_job = self._instance_queue.get()
+        if not next_job.ready():
+            print("Blocked on queue")
         return next_job.get()[0]
 
     # optional argument is fine
