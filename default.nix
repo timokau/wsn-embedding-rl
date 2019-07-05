@@ -9,8 +9,8 @@ let
   }) {};
   inherit (pkgs) lib;
 in pkgs.mkShell {
-  buildInputs = [
-    (pkgs.python3.withPackages(ps: with ps; [
+  buildInputs = with pkgs; [
+    (python3.withPackages(ps: with ps; [
       # use my forked version of baselines
       # (https://github.com/openai/baselines/pull/931 etc.)
       (baselines.overrideAttrs (attrs: {
@@ -26,7 +26,9 @@ in pkgs.mkShell {
       matplotlib
       pydot
       ipython
+      pycallgraph # profiling
     ]))
+    graphviz # for pycallgraph profiling
   ];
   shellHook = ''
     export OPENAI_LOG_FORMAT=stdout,csv,tensorboard
