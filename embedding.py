@@ -1,6 +1,6 @@
 """Model of wireless overlay networks"""
 
-from typing import List, Tuple, Iterable
+from typing import List, Tuple, Iterable, Set
 from collections import defaultdict
 import math
 
@@ -91,12 +91,13 @@ class PartialEmbedding:
         self._taken_edges = dict()
         # per-timeslot, more scalable
         self._taken_edges_in = defaultdict(set)
+        self._nodes_sending_in = defaultdict(set)
         self.taken_embeddings = dict()
         self._num_outlinks_embedded = defaultdict(int)
         self._capacity_used = defaultdict(float)
         self._transmissions_at = defaultdict(list)
         self._known_sinr_cache = defaultdict(dict)
-        self._power_at_node_cache = defaultdict(dict)
+        self._power_at_node_cache = dict()
         self.embedded_links = []
 
         self._build_possibilities_graph(source_mapping)
@@ -228,9 +229,7 @@ class PartialEmbedding:
         # pylint: disable=too-many-branches,too-many-statements
         assert self.graph.node[source]["chosen"]
         self.graph.edges[(source, target, timeslot)]["chosen"] = True
-        # can change all sinr values for this timeslot
-        self._known_sinr_cache[timeslot] = dict()
-        self._power_at_node_cache[timeslot] = dict()
+        self._nodes_sending_in[timeslot].add(source.node)
 
         # if this completes a link
         if not target.relay:
@@ -436,32 +435,20 @@ class PartialEmbedding:
             ):
                 self.remove_connection(source, target, timeslot)
 
-    def power_at_node(
-        self, node: str, timeslot: int, additional_senders: Iterable[str] = ()
-    ):
-        """
-        Calculates the amount of power a node receives (signal+noise) at
-        the given timeslot.
-
-        It is assumed that only the already chosen
-        edges and the currently considered edge are sending.
-        """
-        index = (node, timeslot, tuple(additional_senders))
-        cached = self._power_at_node_cache[timeslot].get(index)
+    def power_at_node(self, node: str, senders: Iterable[str]):
+        """Calculates the amount of power a node receives (signal+noise)
+        assuming only `senders` sends"""
+        index = (node, frozenset(senders))
+        cached = self._power_at_node_cache.get(index)
         if cached is None:
             # We need to convert to watts for addition (log scale can only
             # multiply)
             received_power_watt = 0
-            transmissions = self._transmissions_at[timeslot]
-
-            # use a set to make sure broadcasts aren't counted twice
-            sending_nodes = {u.node for (u, v) in transmissions}
-            sending_nodes = sending_nodes.union(additional_senders)
-            for sender in sending_nodes:
+            for sender in senders:
                 p_r = self.infra.power_received_dbm(sender, node)
                 received_power_watt += wsignal.dbm_to_watt(p_r)
             cached = wsignal.watt_to_dbm(received_power_watt)
-            self._power_at_node_cache[timeslot][index] = cached
+            self._power_at_node_cache[index] = cached
         return cached
 
     def known_capacity(
@@ -469,7 +456,7 @@ class PartialEmbedding:
         source_node: str,
         target_node: str,
         timeslot: int,
-        additional_senders: Iterable[str] = (),
+        additional_senders: Set[str] = frozenset(),
         noise_floor_dbm: float = -80,
     ):
         """
@@ -492,7 +479,7 @@ class PartialEmbedding:
         source_node: str,
         target_node: str,
         timeslot: int,
-        additional_senders: Iterable[str] = (),
+        additional_senders: Set[str] = frozenset(),
         # https://www.quora.com/How-high-is-the-ambient-RF-noise-floor-in-the-2-4-GHz-spectrum-in-downtown-San-Francisco
         noise_floor_dbm: float = -80,
     ):
@@ -500,36 +487,27 @@ class PartialEmbedding:
         SINR assuming only already chosen edges and the currently
         considered edges are sending.
         """
-        index = (
-            source_node,
-            target_node,
-            tuple(additional_senders),
-            noise_floor_dbm,
-        )
-        timeslot_cache = self._known_sinr_cache[timeslot]
-        cached = timeslot_cache.get(index)
+        senders = self._nodes_sending_in[timeslot].union(additional_senders)
+        # always ignore the sending node in sinr calculations
+        # (assuming broadcast, no self-interference)
+        senders = frozenset(senders.difference({source_node}))
+        index = (source_node, target_node, senders, noise_floor_dbm)
+        cached = self._known_sinr_cache.get(index)
         if cached is None:
             received_signal_dbm = self.infra.power_received_dbm(
                 source_node, target_node
             )
 
-            # make sure source node is already counted (which it will be
-            # in the case of broadcast anyway), subtract it later
-            additional_senders = set(additional_senders)
-            additional_senders.add(source_node)
-
-            received_power_dbm = self.power_at_node(
-                target_node, timeslot, additional_senders=additional_senders
-            )
-            received_interference_dbm = wsignal.subtract_dbm(
-                received_power_dbm, received_signal_dbm
+            # all interference, since the source node is removed from
+            # senders
+            received_interference_dbm = self.power_at_node(
+                target_node, senders=senders
             )
 
             cached = wsignal.sinr(
                 received_signal_dbm, received_interference_dbm, noise_floor_dbm
             )
-            timeslot_cache[index] = cached
-            self._known_sinr_cache[timeslot] = timeslot_cache
+            self._known_sinr_cache[index] = cached
         return cached
 
     def _add_outedges(self, enode: ENode, timeslot: int):
