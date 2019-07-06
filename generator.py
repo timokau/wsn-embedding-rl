@@ -155,21 +155,27 @@ def _random_overlay(
     overlay = OverlayNetwork()
 
     # always one sink
-    overlay.set_sink(requirement=compute_requirement_dist())
+    overlay.set_sink(
+        requirement=compute_requirement_dist(), datarate=datarate_dist()
+    )
 
     # add sources
     for _ in range(num_sources):
-        overlay.add_source(requirement=compute_requirement_dist())
+        overlay.add_source(
+            requirement=compute_requirement_dist(), datarate=datarate_dist()
+        )
 
     # add intermediates
     for _ in range(num_intermediates):
-        overlay.add_intermediate(requirement=compute_requirement_dist())
+        overlay.add_intermediate(
+            requirement=compute_requirement_dist(), datarate=datarate_dist()
+        )
 
     # randomly add links
     for source in overlay.graph.nodes():
         for target in overlay.graph.nodes():
             if target != source and pairwise_connection():
-                overlay.add_link(source, target, datarate=datarate_dist())
+                overlay.add_link(source, target)
 
     # add links necessary to have each block on a path from a source to
     # the sink
@@ -198,13 +204,13 @@ def _random_overlay(
     # make sure all nodes are reachable from a source
     for node in not_accessible_from_source:
         connection = connection_choice(list(accessible_from_source))
-        overlay.add_link(connection, node, datarate=datarate_dist())
+        overlay.add_link(connection, node)
         accessible_from_source.add(node)
 
     # make sure all nodes can reach the sink
     for node in no_path_to_sink:
         connection = connection_choice(list(has_path_to_sink))
-        overlay.add_link(node, connection, datarate=datarate_dist())
+        overlay.add_link(node, connection)
         has_path_to_sink.add(node)
 
     return overlay

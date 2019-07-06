@@ -3,7 +3,6 @@
 from typing import List, Tuple, Iterable
 from collections import defaultdict
 import math
-from math import inf
 
 import networkx as nx
 
@@ -197,19 +196,6 @@ class PartialEmbedding:
                 if option != enode:
                     self.remove_enode(option)
 
-    def _compute_min_datarate(self, source, target, timeslot):
-        min_datarate = inf
-        may_represent = self.graph.edges[(source, target, timeslot)][
-            "may_represent"
-        ]
-        for (u, v) in may_represent:
-            datarate = self.overlay.graph.edges[(u, v)]["datarate"]
-            if datarate < min_datarate:
-                min_datarate = datarate
-        self.graph.edges[(source, target, timeslot)][
-            "min_datarate"
-        ] = min_datarate
-
     def try_add_edge(self, source: ENode, target: ENode, timeslot: int):
         """Tries to a possible connection to the graph if it is
         feasible."""
@@ -217,13 +203,6 @@ class PartialEmbedding:
         # silently introduce bugs
         assert self.graph.has_node(source)
         assert self.graph.has_node(target)
-        may_represent = set()
-        for (u, v) in self.overlay.graph.out_edges(nbunch=[source.acting_as]):
-            if (u, v) not in self.embedded_links and (
-                target.block is None or target.acting_as == v
-            ):
-                may_represent.add((u, v))
-
         self.graph.add_edge(
             source,
             target,
@@ -231,9 +210,7 @@ class PartialEmbedding:
             timeslot=timeslot,
             # edges are uniquely identified by (source, target, timeslot)
             key=timeslot,
-            may_represent=may_represent,
         )
-        self._compute_min_datarate(source, target, timeslot)
         if not self._connection_feasible(source, target, timeslot):
             self.remove_connection(source, target, timeslot)
             return False
@@ -268,14 +245,8 @@ class PartialEmbedding:
             ):
                 if d["chosen"]:
                     continue
-                try:
-                    d["may_represent"].remove(link)
-                except KeyError:
-                    pass
-                ts = d["timeslot"]
-                self._compute_min_datarate(u, v, ts)
-                if not self._connection_feasible_in_timeslot(u, v, ts):
-                    self.remove_connection(u, v, ts)
+                if not self._connection_necessary(u, v):
+                    self.remove_connection(u, v, d["timeslot"])
 
         if source.relay:
             # if the connection is originating as a relay, the
@@ -331,14 +302,14 @@ class PartialEmbedding:
                 timeslot=timeslot,
                 additional_senders={source.node},
             )
-            thresh = self.graph.edges[(u, v, timeslot)]["min_datarate"]
+            thresh = self.overlay.datarate(u.acting_as)
             if new_capacity < thresh:
                 return True
         return False
 
     def _datarate_valid(self, source, target, timeslot):
         """Checks if connection datarate is valid"""
-        thresh = self.graph.edges[(source, target, timeslot)]["min_datarate"]
+        thresh = self.overlay.datarate(source.acting_as)
         capacity = self.known_capacity(source.node, target.node, timeslot)
         return capacity >= thresh
 

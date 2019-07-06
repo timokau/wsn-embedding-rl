@@ -843,12 +843,12 @@ def test_unnecessary_links_removed_in_other_timeslots():
     bsi = overlay.set_sink(name="bsi")
     bso = overlay.add_source(name="bso")
     bfaraway_1 = overlay.add_source(name="bfaraway_1")
-    bfaraway_2 = overlay.add_intermediate(name="bfaraway_2")
+    bfaraway_2 = overlay.add_intermediate(name="bfaraway_2", datarate=0)
 
     overlay.add_link(bso, bsi)
     overlay.add_link(bfaraway_1, bfaraway_2)
     # just to make it correct
-    overlay.add_link(bfaraway_2, bsi, datarate=0)
+    overlay.add_link(bfaraway_2, bsi)
 
     embedding = PartialEmbedding(
         infra, overlay, source_mapping=[(bso, nso), (bfaraway_1, nfaraway_1)]
@@ -993,7 +993,7 @@ def test_not_possible_to_take_same_relay_twice():
     binterm = overlay.add_intermediate(name="binterm")
     bsi = overlay.set_sink(name="bsi")
     bfaraway_1 = overlay.add_source(name="bfaraway_1")
-    bfaraway_2 = overlay.add_intermediate(name="bfaraway_2")
+    bfaraway_2 = overlay.add_intermediate(name="bfaraway_2", datarate=0)
 
     overlay.add_link(bso, bsi)
     # make sure two out links for bso exist so that taking the same
@@ -1002,7 +1002,7 @@ def test_not_possible_to_take_same_relay_twice():
     overlay.add_link(binterm, bsi)
     overlay.add_link(bfaraway_1, bfaraway_2)
     # just to make it correct
-    overlay.add_link(bfaraway_2, bsi, datarate=0)
+    overlay.add_link(bfaraway_2, bsi)
 
     embedding = PartialEmbedding(
         infra, overlay, source_mapping=[(bso, nso), (bfaraway_1, nfaraway_1)]
@@ -1188,16 +1188,16 @@ def test_block_capacity():
 
     overlay = OverlayNetwork()
 
-    bso = overlay.add_source(name="bso")
-    bin1 = overlay.add_intermediate(requirement=40, name="bin1")
-    bin2 = overlay.add_intermediate(requirement=5, name="bin2")
-    bsi = overlay.set_sink(name="bsi")
+    bso = overlay.add_source(name="bso", datarate=0)
+    bin1 = overlay.add_intermediate(requirement=40, name="bin1", datarate=0)
+    bin2 = overlay.add_intermediate(requirement=5, name="bin2", datarate=0)
+    bsi = overlay.set_sink(name="bsi", datarate=0)
 
     # ignore sinr constraints
-    overlay.add_link(bso, bin1, datarate=0)
-    overlay.add_link(bso, bin2, datarate=0)
-    overlay.add_link(bin1, bsi, datarate=0)
-    overlay.add_link(bin2, bsi, datarate=0)
+    overlay.add_link(bso, bin1)
+    overlay.add_link(bso, bin2)
+    overlay.add_link(bin1, bsi)
+    overlay.add_link(bin2, bsi)
 
     embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
 
@@ -1320,12 +1320,12 @@ def test_relay_circles_imossible():
     _N1 = infra.set_sink(name="N1", pos=(7.7, 5.2), transmit_power_dbm=22.9)
 
     overlay = OverlayNetwork()
-    B2 = overlay.add_source(name="B2", requirement=0)
-    _B5 = overlay.add_intermediate(name="B5", requirement=0)
-    B4 = overlay.add_intermediate(name="B4", requirement=0)
-    B1 = overlay.set_sink(name="B1", requirement=0)
-    overlay.add_link(B2, B4, 0)
-    overlay.add_link(B4, B1, 0)
+    B2 = overlay.add_source(name="B2", requirement=0, datarate=0)
+    _B5 = overlay.add_intermediate(name="B5", requirement=0, datarate=0)
+    B4 = overlay.add_intermediate(name="B4", requirement=0, datarate=0)
+    B1 = overlay.set_sink(name="B1", requirement=0, datarate=0)
+    overlay.add_link(B2, B4)
+    overlay.add_link(B4, B1)
 
     embedding = PartialEmbedding(infra, overlay, source_mapping=[(B2, N2)])
 
@@ -1358,58 +1358,6 @@ def test_same_connection_not_possible_twice():
     assert not take_action(embedding, "(B2-N2, N3, 1)", expect_success=False)
 
 
-def test_datarate_adjusted_when_link_taken():
-    """Tests that the minimal datarate for a link is properly adjusted
-    when a link is taken"""
-    infra = InfrastructureNetwork()
-
-    N2 = infra.add_source(name="N2", pos=(2, 6), transmit_power_dbm=20)
-    N3 = infra.add_source(name="N3", pos=(9, 7), transmit_power_dbm=12)
-    _N6 = infra.add_intermediate(name="N6", pos=(7, 7), transmit_power_dbm=13)
-    _N5 = infra.add_intermediate(name="N5", pos=(3, 1), transmit_power_dbm=6)
-    _N4 = infra.add_intermediate(name="N4", pos=(7, 4), transmit_power_dbm=13)
-    _N1 = infra.set_sink(name="N1", pos=(4, 1), transmit_power_dbm=17)
-
-    overlay = OverlayNetwork()
-    B3 = overlay.add_source(name="B3")
-    B2 = overlay.add_source(name="B2")
-    B1 = overlay.set_sink(name="B1")
-    overlay.add_link(B2, B3, 25)
-    overlay.add_link(B2, B1)
-    overlay.add_link(B3, B1)
-
-    embedding = PartialEmbedding(
-        infra, overlay, source_mapping=[(B3, N3), (B2, N2)]
-    )
-
-    # this is rather involved, because thats what the regression
-    # manifested as and its hard to simplify (given that the noises have
-    # to add up just right)
-    for action in [
-        "(B2-N2, N1, 0)",
-        "(B2-N2, N4, 1)",
-        "((B2)-N4, N1, 2)",
-        "((B2)-N1, N4, 3)",
-        "((B2)-N1, N6, 4)",
-        "((B2)-N6, N3, 5)",
-        "((B2)-N4, N5, 6)",
-        "((B2)-N5, N6, 7)",
-    ]:
-        take_action(embedding, action)
-
-    assert "((B2)-N6, N3, 6)" in [str(p) for p in embedding.possibilities()]
-
-    # completing this link removes B2->B1 from the possible links,
-    # effectively setting the minimum datarate for all remaining
-    # connections from B2 from 0 to 25
-    take_action(embedding, "((B2)-N3, B1-N1, 8)")
-
-    # Note that this is (B2)-N6 with a different predecessor than the
-    # first one. It would be possible in principle, but does not meet
-    # the new datarate
-    assert not take_action(embedding, "((B2)-N6, N3, 6)", expect_success=False)
-
-
 def test_half_duplex():
     """Tests that a node cannot send and receive at the same time"""
     infra = InfrastructureNetwork()
@@ -1419,10 +1367,10 @@ def test_half_duplex():
     nsi = infra.set_sink(name="nsi", pos=(2, 0), transmit_power_dbm=30)
 
     overlay = OverlayNetwork()
-    bso = overlay.add_source(name="bso")
-    bsi = overlay.set_sink(name="bsi")
     # links have no datarate requirements, so SINR concerns don't apply
-    overlay.add_link(bso, bsi, datarate=0)
+    bso = overlay.add_source(name="bso", datarate=0)
+    bsi = overlay.set_sink(name="bsi", datarate=0)
+    overlay.add_link(bso, bsi)
 
     embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
 

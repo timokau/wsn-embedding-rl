@@ -78,7 +78,7 @@ class WSNEnvironment(gym.Env):
 
     def __init__(self):
         self.observation_space = GraphSpace(
-            global_dim=1, node_dim=3, edge_dim=5
+            global_dim=1, node_dim=3, edge_dim=4
         )
 
         # optimize reset
@@ -126,9 +126,6 @@ class WSNEnvironment(gym.Env):
             chosen = d["chosen"]
             timeslot = d["timeslot"]
             capacity = embedding.known_capacity(u.node, v.node, timeslot)
-            min_datarate = embedding.graph.edges[(u, v, timeslot)][
-                "min_datarate"
-            ]
             possible = not chosen and source_chosen
 
             input_graph.add_edge(
@@ -136,13 +133,7 @@ class WSNEnvironment(gym.Env):
                 node_to_index[v],
                 k,
                 features=np.array(
-                    [
-                        float(chosen),
-                        float(possible),
-                        float(timeslot),
-                        capacity,
-                        min_datarate,
-                    ]
+                    [float(chosen), float(possible), float(timeslot), capacity]
                 ),
             )
 

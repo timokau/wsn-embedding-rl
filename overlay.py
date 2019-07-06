@@ -33,30 +33,34 @@ class OverlayNetwork:
         """Returns all links of the overlay"""
         return self.graph.edges()
 
-    def add_source(self, requirement=0, name=None):
+    def add_source(self, requirement=0, datarate=2.0, name=None):
         """Adds a new source node to the overlay and returns it"""
-        block = self._add_block(name, BlockKind.source, requirement)
+        block = self._add_block(name, BlockKind.source, requirement, datarate)
         self.sources.add(block)
         return block
 
-    def add_intermediate(self, requirement=0, name=None):
+    def add_intermediate(self, requirement=0, datarate=2.0, name=None):
         """Adds a new intermediate node to the overlay and returns it"""
-        block = self._add_block(name, BlockKind.intermediate, requirement)
+        block = self._add_block(
+            name, BlockKind.intermediate, requirement, datarate
+        )
         self.intermediates.add(block)
         return block
 
-    def set_sink(self, requirement=0, name=None):
+    def set_sink(self, requirement=0, datarate=2.0, name=None):
         """Creates a new node, sets it as the sink node and returns it"""
-        block = self._add_block(name, BlockKind.sink, requirement)
+        block = self._add_block(name, BlockKind.sink, requirement, datarate)
         self.sink = block
         return block
 
-    def _add_block(self, name, kind: BlockKind, requirement):
+    def _add_block(self, name, kind: BlockKind, requirement, datarate):
         """Adds a block to the overlay network"""
 
         if name is None:
             name = self._generate_name()
-        self.graph.add_node(name, kind=kind, requirement=requirement)
+        self.graph.add_node(
+            name, kind=kind, requirement=requirement, datarate=datarate
+        )
         return name
 
     def requirement(self, block):
@@ -65,17 +69,26 @@ class OverlayNetwork:
             return 0
         return self.graph.node[block]["requirement"]
 
+    def datarate(self, block):
+        """Returns the datarate requirement a given block"""
+        if block is None:
+            return 0
+        return self.graph.node[block]["datarate"]
+
     def _generate_name(self):
         self._last_id += 1
         return f"B{self._last_id}"
 
-    def add_link(self, source: str, sink: str, datarate=2.0):
+    def add_link(self, source: str, sink: str):
         """Adds a link between two blocks in the overlay network"""
-        self.graph.add_edge(source, sink, datarate=datarate)
+        self.graph.add_edge(source, sink)
 
     def _block_to_verbose_str(self, block):
         requirement = self.requirement(block)
-        return f'(name="{block}", requirement={requirement})'
+        datarate = self.datarate(block)
+        return (
+            f'(name="{block}", requirement={requirement}, datarate={datarate})'
+        )
 
     def __str__(self):
         result = "Overlay with:\n"
@@ -91,10 +104,10 @@ class OverlayNetwork:
         s = self._block_to_verbose_str(self.sink)
         result += f"  - set_sink{s}\n"
 
-        links = self.graph.edges(data=True)
+        links = self.graph.edges()
         result += f"- {len(links)} links:\n"
-        for (u, v, d) in links:
-            result += f"  - add_link({u}, {v}, {d['datarate']})\n"
+        for (u, v) in links:
+            result += f"  - add_link({u}, {v})\n"
         return result
 
 
