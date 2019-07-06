@@ -97,6 +97,7 @@ class PartialEmbedding:
         self._capacity_used = defaultdict(float)
         self._transmissions_at = defaultdict(list)
         self._known_sinr_cache = defaultdict(dict)
+        self._power_at_node_cache = defaultdict(dict)
         self.embedded_links = []
 
         self._build_possibilities_graph(source_mapping)
@@ -252,6 +253,7 @@ class PartialEmbedding:
         self.graph.edges[(source, target, timeslot)]["chosen"] = True
         # can change all sinr values for this timeslot
         self._known_sinr_cache[timeslot] = dict()
+        self._power_at_node_cache[timeslot] = dict()
 
         # if this completes a link
         if not target.relay:
@@ -473,18 +475,23 @@ class PartialEmbedding:
         It is assumed that only the already chosen
         edges and the currently considered edge are sending.
         """
-        # We need to convert to watts for addition (log scale can only
-        # multiply)
-        received_power_watt = 0
-        transmissions = self._transmissions_at[timeslot]
+        index = (node, timeslot, tuple(additional_senders))
+        cached = self._known_sinr_cache[timeslot].get(index)
+        if cached is None:
+            # We need to convert to watts for addition (log scale can only
+            # multiply)
+            received_power_watt = 0
+            transmissions = self._transmissions_at[timeslot]
 
-        # use a set to make sure broadcasts aren't counted twice
-        sending_nodes = {u.node for (u, v) in transmissions}
-        sending_nodes = sending_nodes.union(additional_senders)
-        for sender in sending_nodes:
-            p_r = self.infra.power_received_dbm(sender, node)
-            received_power_watt += wsignal.dbm_to_watt(p_r)
-        return wsignal.watt_to_dbm(received_power_watt)
+            # use a set to make sure broadcasts aren't counted twice
+            sending_nodes = {u.node for (u, v) in transmissions}
+            sending_nodes = sending_nodes.union(additional_senders)
+            for sender in sending_nodes:
+                p_r = self.infra.power_received_dbm(sender, node)
+                received_power_watt += wsignal.dbm_to_watt(p_r)
+            cached = wsignal.watt_to_dbm(received_power_watt)
+            self._known_sinr_cache[timeslot][index] = cached
+        return cached
 
     def known_capacity(
         self,
