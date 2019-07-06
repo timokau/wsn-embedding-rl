@@ -1,5 +1,6 @@
 """Modelling the physical network"""
 
+from typing import Iterable
 from enum import Enum
 from math import inf
 import numpy as np
@@ -18,7 +19,11 @@ class NodeKind(Enum):
 class InfrastructureNetwork:
     """Model of the physical network"""
 
-    def __init__(self, bandwidth=1):
+    # pylint: disable=too-many-instance-attributes
+    # Instance attributes needed for caching, I think private instance
+    # attributes are fine.
+
+    def __init__(self, bandwidth=1, noise_floor_dbm: float = -80):
         self._last_id = 0
         # Link capacity is influenced by the SINR and the bandwidth.
         # Leaving the bandwidth set to 1 will result in a link capacity
@@ -26,10 +31,14 @@ class InfrastructureNetwork:
         # requirements are in the format of
         # "b bits per second per bandwidth"
         self.bandwidth = bandwidth
+        # https://www.quora.com/How-high-is-the-ambient-RF-noise-floor-in-the-2-4-GHz-spectrum-in-downtown-San-Francisco
+        self.noise_floor_dbm = noise_floor_dbm
 
         self.graph = nx.Graph()
 
         self.power_received_cache = dict()
+        self._power_at_node_cache = dict()
+        self._sinr_cache = dict()
         self.sink = None
         self.sources = set()
         self.intermediates = set()
@@ -91,6 +100,9 @@ class InfrastructureNetwork:
         if name is None:
             name = self._generate_name()
 
+        # reset caches
+        self._power_at_node_cache = dict()
+        self._sinr_cache = dict()
         self.graph.add_node(
             name,
             kind=kind,
@@ -138,6 +150,44 @@ class InfrastructureNetwork:
             transmit_power_dbm = source_node["transmit_power_dbm"]
             cached = wsignal.power_received(distance, transmit_power_dbm)
             self.power_received_cache[(source, target)] = cached
+        return cached
+
+    def power_at_node(self, node: str, senders: Iterable[str]):
+        """Calculates the amount of power a node receives (signal+noise)
+        assuming only `senders` sends"""
+        index = (node, frozenset(senders))
+        cached = self._power_at_node_cache.get(index)
+        if cached is None:
+            # We need to convert to watts for addition (log scale can only
+            # multiply)
+            received_power_watt = 0
+            for sender in senders:
+                p_r = self.power_received_dbm(sender, node)
+                received_power_watt += wsignal.dbm_to_watt(p_r)
+            cached = wsignal.watt_to_dbm(received_power_watt)
+            self._power_at_node_cache[index] = cached
+        return cached
+
+    def sinr(self, source: str, target: str, senders: Iterable[str]):
+        """
+        SINR assuming only `senders` are sending.
+        """
+        index = (source, target, frozenset(senders))
+        cached = self._sinr_cache.get(index)
+        if cached is None:
+            received_signal_dbm = self.power_received_dbm(source, target)
+
+            # everything already sending is assumed to be interference
+            received_interference_dbm = self.power_at_node(
+                target, senders=senders
+            )
+
+            cached = wsignal.sinr(
+                received_signal_dbm,
+                received_interference_dbm,
+                self.noise_floor_dbm,
+            )
+            self._sinr_cache[index] = cached
         return cached
 
     def _generate_name(self):

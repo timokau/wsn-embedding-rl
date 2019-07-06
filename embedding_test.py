@@ -88,7 +88,7 @@ def test_manually_verified_sinr():
     Tests that the SINR calculation agrees with a manually verified
     example.
     """
-    infra = InfrastructureNetwork()
+    infra = InfrastructureNetwork(noise_floor_dbm=15)
 
     # 2 sources, 2 intermediaries, 1 sink
     n_source1 = infra.add_source(pos=(0, 0), transmit_power_dbm=30)
@@ -170,7 +170,7 @@ def test_manually_verified_sinr():
     # Here the subtraction actually *should* represent a division of the
     # powers.
 
-    sinr = embedding.known_sinr(n_source1, n_interm1, 0, noise_floor_dbm=15)
+    sinr = embedding.known_sinr(n_source1, n_interm1, 0)
     assert sinr == approx(11.46, abs=0.1)
 
 
@@ -488,16 +488,16 @@ def test_broadcast_possible():
     assert embedding.take_action(esource, esink, 0)
     # Easiest way to test this, easy to change if internals change.
     # pylint: disable=protected-access
-    power_at_sink = embedding.power_at_node(
+    power_at_sink = embedding.infra.power_at_node(
         esink.node, embedding._nodes_sending_in[0]
     )
     assert embedding.take_action(esource, einterm, 0)
 
     # Make sure the broadcasting isn't counted twice
-    assert (
-        embedding.power_at_node(esink.node, embedding._nodes_sending_in[0])
-        == power_at_sink
+    new_power = embedding.infra.power_at_node(
+        esink.node, embedding._nodes_sending_in[0]
     )
+    assert new_power == power_at_sink
 
     # Make sure the broadcasts do not interfere with each other
     assert sinr_before == embedding.known_sinr(

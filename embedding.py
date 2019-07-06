@@ -1,12 +1,11 @@
 """Model of wireless overlay networks"""
 
-from typing import List, Tuple, Iterable, Set
+from typing import List, Tuple, Iterable
 from collections import defaultdict
 import math
 
 import networkx as nx
 
-import wsignal
 from infrastructure import InfrastructureNetwork
 from overlay import OverlayNetwork
 
@@ -96,8 +95,6 @@ class PartialEmbedding:
         self._num_outlinks_embedded = defaultdict(int)
         self._capacity_used = defaultdict(float)
         self._transmissions_at = defaultdict(list)
-        self._known_sinr_cache = defaultdict(dict)
-        self._power_at_node_cache = dict()
         self.embedded_links = []
 
         self._build_possibilities_graph(source_mapping)
@@ -435,40 +432,19 @@ class PartialEmbedding:
             ):
                 self.remove_connection(source, target, timeslot)
 
-    def power_at_node(self, node: str, senders: Iterable[str]):
-        """Calculates the amount of power a node receives (signal+noise)
-        assuming only `senders` sends"""
-        index = (node, frozenset(senders))
-        cached = self._power_at_node_cache.get(index)
-        if cached is None:
-            # We need to convert to watts for addition (log scale can only
-            # multiply)
-            received_power_watt = 0
-            for sender in senders:
-                p_r = self.infra.power_received_dbm(sender, node)
-                received_power_watt += wsignal.dbm_to_watt(p_r)
-            cached = wsignal.watt_to_dbm(received_power_watt)
-            self._power_at_node_cache[index] = cached
-        return cached
-
     def known_capacity(
         self,
         source_node: str,
         target_node: str,
         timeslot: int,
-        additional_senders: Set[str] = frozenset(),
-        noise_floor_dbm: float = -80,
+        additional_senders: Iterable[str] = frozenset(),
     ):
         """
         Connection capacity assuming only already chosen edges and the
         currently considered edges are sending.
         """
         sinr = self.known_sinr(
-            source_node,
-            target_node,
-            timeslot,
-            additional_senders,
-            noise_floor_dbm,
+            source_node, target_node, timeslot, additional_senders
         )
         bandwidth = self.infra.bandwidth
         shannon_capacity = bandwidth * math.log(1 + 10 ** (sinr / 10), 2)
@@ -479,36 +455,15 @@ class PartialEmbedding:
         source_node: str,
         target_node: str,
         timeslot: int,
-        additional_senders: Set[str] = frozenset(),
-        # https://www.quora.com/How-high-is-the-ambient-RF-noise-floor-in-the-2-4-GHz-spectrum-in-downtown-San-Francisco
-        noise_floor_dbm: float = -80,
+        additional_senders: Iterable[str] = frozenset(),
     ):
-        """
-        SINR assuming only already chosen edges and the currently
-        considered edges are sending.
-        """
+        """SINR assuming only already chosen edges and the currently
+        considered edges are sending"""
         senders = self._nodes_sending_in[timeslot].union(additional_senders)
         # always ignore the sending node in sinr calculations
         # (assuming broadcast, no self-interference)
         senders = frozenset(senders.difference({source_node}))
-        index = (source_node, target_node, senders, noise_floor_dbm)
-        cached = self._known_sinr_cache.get(index)
-        if cached is None:
-            received_signal_dbm = self.infra.power_received_dbm(
-                source_node, target_node
-            )
-
-            # all interference, since the source node is removed from
-            # senders
-            received_interference_dbm = self.power_at_node(
-                target_node, senders=senders
-            )
-
-            cached = wsignal.sinr(
-                received_signal_dbm, received_interference_dbm, noise_floor_dbm
-            )
-            self._known_sinr_cache[index] = cached
-        return cached
+        return self.infra.sinr(source_node, target_node, senders)
 
     def _add_outedges(self, enode: ENode, timeslot: int):
         """Connect a new ENode to all its possible successors"""
