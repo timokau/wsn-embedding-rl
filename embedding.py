@@ -447,7 +447,7 @@ class PartialEmbedding:
         edges and the currently considered edge are sending.
         """
         index = (node, timeslot, tuple(additional_senders))
-        cached = self._known_sinr_cache[timeslot].get(index)
+        cached = self._power_at_node_cache[timeslot].get(index)
         if cached is None:
             # We need to convert to watts for addition (log scale can only
             # multiply)
@@ -461,7 +461,7 @@ class PartialEmbedding:
                 p_r = self.infra.power_received_dbm(sender, node)
                 received_power_watt += wsignal.dbm_to_watt(p_r)
             cached = wsignal.watt_to_dbm(received_power_watt)
-            self._known_sinr_cache[timeslot][index] = cached
+            self._power_at_node_cache[timeslot][index] = cached
         return cached
 
     def known_capacity(
