@@ -90,6 +90,8 @@ class PartialEmbedding:
         self._by_block = defaultdict(set)
         self._by_node = defaultdict(set)
         self._taken_edges = dict()
+        # per-timeslot, more scalable
+        self._taken_edges_in = defaultdict(set)
         self.taken_embeddings = dict()
         self._num_outlinks_embedded = defaultdict(int)
         self._capacity_used = defaultdict(float)
@@ -397,21 +399,22 @@ class PartialEmbedding:
         # the same embedding can send multiple times within a timeslot
         # (broadcasting results), but others cannot (which would send
         # other data)
-        for ((u, v), t) in self._taken_edges.items():
+        for (u, v) in self._taken_edges_in[timeslot]:
             # loops within a node are okay
-            is_loop = u.node == v.node
-            same_node = u.node == enode.node
-            different_data = u.acting_as != enode.acting_as
-            if same_node and different_data and t == timeslot and not is_loop:
+            if (
+                u.node == enode.node
+                and u.acting_as != enode.acting_as
+                and not u.node == v.node
+            ):
                 return True
         return False
 
     def _node_receiving_data_in_timeslot(self, node, timeslot):
         """We work on the half-duplex assumption: sending and receiving
         is mutually exclusive."""
-        for ((u, v), t) in self._taken_edges.items():
+        for (u, v) in self._taken_edges_in[timeslot]:
             # loops within a node are okay
-            if v.node == node and t == timeslot and u.node != v.node:
+            if v.node == node and u.node != v.node:
                 return True
         return False
 
@@ -594,6 +597,8 @@ class PartialEmbedding:
         assert self._connection_feasible(source, target, timeslot)
 
         self._taken_edges[(source, target)] = timeslot
+        self._taken_edges_in[timeslot].add((source, target))
+
         if target.relay:
             self._remove_connections_between(source, target)
             target = ENode(
