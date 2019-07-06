@@ -13,7 +13,7 @@ from graph_nets.graphs import GraphsTuple
 
 import generator
 
-QUEUE_SIZE = 1024
+QUEUE_SIZE = 128
 
 
 class GraphSpace(gym.spaces.Space):
