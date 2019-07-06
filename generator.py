@@ -79,15 +79,17 @@ def validated_random(rand):
         blocks = len(emb.overlay.blocks())
         links = len(emb.overlay.links())
         if baseline is not None:
+            if elapsed > 60:
+                # pylint: disable=line-too-long
+                print(
+                    f"Generated ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links, {reward})"
+                )
+            return (emb.reset(), baseline)
+        if elapsed > 60:
             # pylint: disable=line-too-long
             print(
-                f"Generated ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links, {reward})"
+                f"Failed    ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links, {reward})"
             )
-            return (emb.reset(), baseline)
-        # pylint: disable=line-too-long
-        print(
-            f"Failed    ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links, {reward})"
-        )
 
 
 def _random_infrastructure(
