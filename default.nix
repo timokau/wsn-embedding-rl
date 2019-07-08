@@ -27,6 +27,8 @@ in pkgs.mkShell {
       pydot
       ipython
       pycallgraph # profiling
+      numpy
+      scipy
     ]))
     graphviz # for pycallgraph profiling
   ];

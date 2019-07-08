@@ -3,6 +3,7 @@
 import time
 
 import numpy as np
+from scipy import stats
 import networkx as nx
 
 from overlay import OverlayNetwork
@@ -11,13 +12,23 @@ from embedding import PartialEmbedding
 import baseline_agent
 
 
+def truncnorm(mean=0, sd=1, low=-np.infty, upp=np.infty, rand=np.random):
+    """Convenience wrapper around scipys truncnorm"""
+    dist = stats.truncnorm(
+        (low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd
+    )
+    # for some reason this can't be set in the constructor
+    dist.random_state = rand
+    return float(dist.rvs())
+
+
 def random_infrastructure(num_sources: int, rand):
     """Generates a randomize infrastructure with default parameters
 
     The resulting nodes will be distributed uniformly at random in a
     25m x 25m room.
     """
-    num_intermediates = round(rand.exponential(10))
+    num_intermediates = round(truncnorm(mean=10, sd=10, low=0))
     pos_dist = lambda: rand.uniform(low=(0, 0), high=(25, 25))
     capacity_dist = lambda: rand.exponential(10)
 
@@ -31,7 +42,7 @@ def random_infrastructure(num_sources: int, rand):
 
 def random_overlay(num_sources: int, rand):
     """Generates a randomized overlay graph with default parameters"""
-    num_intermediates = round(rand.exponential(6))
+    num_intermediates = round(truncnorm(mean=6, sd=10, low=0))
     pairwise_connection = lambda: rand.rand() < 0.01
     compute_requirement_dist = lambda: rand.exponential(5)
     # datarate in bits/s with an assumed bandwidth of 1 (i.e. equivalent
