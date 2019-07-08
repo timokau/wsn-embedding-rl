@@ -82,7 +82,12 @@ class WSNEnvironment(gym.Env):
     def __init__(
         self,
         node_features=("pos", "relay", "sink"),
-        edge_features=("timeslot", "chosen", "capacity"),
+        edge_features=(
+            "timeslot",
+            "chosen",
+            "capacity",
+            "additional_timeslot",
+        ),
     ):
         self._node_featuers = node_features
         node_dim = 0
@@ -100,6 +105,8 @@ class WSNEnvironment(gym.Env):
         if "chosen" in edge_features:
             edge_dim += 1
         if "capacity" in edge_features:
+            edge_dim += 1
+        if "additional_timeslot" in edge_features:
             edge_dim += 1
 
         self.observation_space = GraphSpace(
@@ -159,12 +166,16 @@ class WSNEnvironment(gym.Env):
             capacity = embedding.known_capacity(u.node, v.node, timeslot)
             possible = not chosen and source_chosen
             features = [float(possible)]
+            additional_timeslot = timeslot >= self.env.used_timeslots
+
             if "timeslot" in self._edge_features:
                 features += [float(timeslot)]
             if "chosen" in self._edge_features:
                 features += [float(chosen)]
             if "capacity" in self._edge_features:
                 features += [capacity]
+            if "additional_timeslot" in self._edge_features:
+                features += [float(additional_timeslot)]
 
             assert features[POSSIBLE_IDX] == float(possible)
             assert features[TIMESLOT_IDX] == float(timeslot)
