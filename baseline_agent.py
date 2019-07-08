@@ -16,11 +16,11 @@ def act(graph_tuple, randomness=0):
     for (u, v, d) in zip(
         graph_tuple.senders, graph_tuple.receivers, graph_tuple.edges
     ):
-        possible = d[1] == 1
+        possible = d[gym_environment.POSSIBLE_IDX] == 1
         if not possible:
             continue
         else:
-            timeslot = int(d[2])
+            timeslot = int(d[gym_environment.TIMESLOT_IDX])
             possible_actions.append((u, v, d))
             if timeslot == min_ts:
                 min_ts_actions.append(i)
@@ -39,8 +39,7 @@ def act(graph_tuple, randomness=0):
     for action_idx in preferred_actions:
         (u, v, d) = possible_actions[action_idx]
         receiver = graph_tuple.nodes[v]
-        # receiver_pos = (receiver[0], receiver[1])
-        receiver_is_relay = bool(receiver[2])
+        receiver_is_relay = bool(receiver[gym_environment.RELAY_IDX])
         if not receiver_is_relay:
             not_relay_actions.append(action_idx)
 
@@ -56,6 +55,8 @@ def play_episode(embedding, max_restarts=None):
     env = gym_environment.WSNEnvironment()
     obs = env.reset(embedding)
     total_reward = 0
+    if len(embedding.possibilities()) == 0:
+        return (None, None)
     while max_restarts is None or env.restarts < max_restarts:
         # gradually increase randomness up to 100%
         randomness = env.restarts / (max_restarts - 1)

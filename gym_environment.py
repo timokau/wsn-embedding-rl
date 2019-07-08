@@ -14,6 +14,9 @@ from graph_nets.graphs import GraphsTuple
 import generator
 
 QUEUE_SIZE = 128
+POSSIBLE_IDX = 0
+TIMESLOT_IDX = 1
+RELAY_IDX = 2
 
 
 class GraphSpace(gym.spaces.Space):
@@ -76,9 +79,29 @@ class WSNEnvironment(gym.Env):
     # pylint: disable=attribute-defined-outside-init
     # pylint: disable=too-many-instance-attributes
 
-    def __init__(self):
+    def __init__(
+        self,
+        node_features=("pos", "relay"),
+        edge_features=("timeslot", "chosen", "capacity"),
+    ):
+        self._node_featuers = node_features
+        node_dim = 0
+        if "pos" in node_features:
+            node_dim += 2
+        if "relay" in node_features:
+            node_dim += 1
+
+        self._edge_features = edge_features
+        edge_dim = 1  # always has to include "possible" bit
+        if "timeslot" in edge_features:
+            edge_dim += 1
+        if "chosen" in edge_features:
+            edge_dim += 1
+        if "capacity" in edge_features:
+            edge_dim += 1
+
         self.observation_space = GraphSpace(
-            global_dim=1, node_dim=3, edge_dim=4
+            global_dim=1, node_dim=node_dim, edge_dim=edge_dim
         )
 
         # optimize reset
@@ -113,12 +136,15 @@ class WSNEnvironment(gym.Env):
             inode = infra_graph.node[enode.node]
             node_to_index[enode] = i
             index_to_node[i] = enode
-            input_graph.add_node(
-                i,
-                features=np.array(
-                    [inode["pos"][0], inode["pos"][1], float(enode.relay)]
-                ),
-            )
+
+            features = []
+            if "pos" in self._node_featuers:
+                features += [inode["pos"][0], inode["pos"][1]]
+            if "relay" in self._node_featuers:
+                features += [float(enode.relay)]
+
+            assert features[RELAY_IDX] == float(enode.relay)
+            input_graph.add_node(i, features=np.array(features))
 
         # add the edges
         for (u, v, k, d) in embedding.graph.edges(data=True, keys=True):
@@ -127,14 +153,22 @@ class WSNEnvironment(gym.Env):
             timeslot = d["timeslot"]
             capacity = embedding.known_capacity(u.node, v.node, timeslot)
             possible = not chosen and source_chosen
+            features = [float(possible)]
+            if "timeslot" in self._edge_features:
+                features += [float(timeslot)]
+            if "chosen" in self._edge_features:
+                features += [float(chosen)]
+            if "capacity" in self._edge_features:
+                features += [capacity]
+
+            assert features[POSSIBLE_IDX] == float(possible)
+            assert features[TIMESLOT_IDX] == float(timeslot)
 
             input_graph.add_edge(
                 node_to_index[u],
                 node_to_index[v],
                 k,
-                features=np.array(
-                    [float(chosen), float(possible), float(timeslot), capacity]
-                ),
+                features=np.array(features),
             )
 
         # no globals in input
@@ -147,13 +181,13 @@ class WSNEnvironment(gym.Env):
         # one the network is seeing
         self.actions = []
         for (u, v, d) in zip(gt.senders, gt.receivers, gt.edges):
-            possible = d[1] == 1
+            possible = d[POSSIBLE_IDX] == 1
             if not possible:
                 continue
             else:
                 source = index_to_node[u]
                 target = index_to_node[v]
-                timeslot = int(d[2])
+                timeslot = int(d[TIMESLOT_IDX])
                 self.actions.append((source, target, timeslot))
 
         self.last_translation_dict = node_to_index
@@ -162,7 +196,7 @@ class WSNEnvironment(gym.Env):
     def step(self, action):
         (source, sink, timeslot) = self.actions[action]
         ts_before = self.env.used_timeslots
-        self.env.take_action(source, sink, timeslot)
+        assert self.env.take_action(source, sink, timeslot)
 
         reward = ts_before - self.env.used_timeslots
         done = self.env.is_complete()

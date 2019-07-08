@@ -37,7 +37,7 @@ def deepq_graph_network(inpt):
     )
 
     def edge_is_possible_action(edge):
-        possible = edge[1]  # second attribute, float repr of bool
+        possible = edge[gym_environment.POSSIBLE_IDX]
         return tf.math.equal(possible, 1)
 
     viable_actions_mask = tf.map_fn(
