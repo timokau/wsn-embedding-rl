@@ -81,7 +81,7 @@ class WSNEnvironment(gym.Env):
 
     def __init__(
         self,
-        node_features=("pos", "relay"),
+        node_features=("pos", "relay", "sink"),
         edge_features=("timeslot", "chosen", "capacity"),
     ):
         self._node_featuers = node_features
@@ -89,6 +89,8 @@ class WSNEnvironment(gym.Env):
         if "pos" in node_features:
             node_dim += 2
         if "relay" in node_features:
+            node_dim += 1
+        if "sink" in node_features:
             node_dim += 1
 
         self._edge_features = edge_features
@@ -136,12 +138,15 @@ class WSNEnvironment(gym.Env):
             inode = infra_graph.node[enode.node]
             node_to_index[enode] = i
             index_to_node[i] = enode
+            is_sink = enode.node == self.env.infra.sink
 
             features = []
             if "pos" in self._node_featuers:
                 features += [inode["pos"][0], inode["pos"][1]]
             if "relay" in self._node_featuers:
                 features += [float(enode.relay)]
+            if "sink" in self._node_featuers:
+                features += [float(is_sink)]
 
             assert features[RELAY_IDX] == float(enode.relay)
             input_graph.add_node(i, features=np.array(features))
