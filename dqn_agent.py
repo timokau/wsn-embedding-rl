@@ -1,5 +1,7 @@
 """Train a graph_nets DQN agent on the WSN environment"""
 
+import subprocess
+import time
 import tensorflow as tf
 
 # needs this fork of baselines:
@@ -65,6 +67,19 @@ def save_episode_result_callback(lcl, _glb):
 def main():
     """Run the training"""
     env = gym_environment.WSNEnvironment()
+    try:
+        git_label = (
+            subprocess.check_output(["git", "describe", "--always"])
+            .strip()
+            .decode()
+        )
+    except subprocess.CalledProcessError:
+        git_label = "nogit"
+
+    logger.configure(
+        dir=f"logs/{git_label}-{round(time.time())}",
+        format_strs=["stdout", "csv", "tensorboard"],
+    )
     learn(
         env,
         deepq_graph_network,
