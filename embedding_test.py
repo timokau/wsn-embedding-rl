@@ -489,13 +489,13 @@ def test_broadcast_possible():
     # Easiest way to test this, easy to change if internals change.
     # pylint: disable=protected-access
     power_at_sink = embedding.infra.power_at_node(
-        esink.node, embedding._nodes_sending_in[0]
+        esink.node, frozenset(embedding._nodes_sending_in[0])
     )
     assert embedding.take_action(esource, einterm, 0)
 
     # Make sure the broadcasting isn't counted twice
     new_power = embedding.infra.power_at_node(
-        esink.node, embedding._nodes_sending_in[0]
+        esink.node, frozenset(embedding._nodes_sending_in[0])
     )
     assert new_power == power_at_sink
 

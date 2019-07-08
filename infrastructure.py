@@ -1,6 +1,7 @@
 """Modelling the physical network"""
 
-from typing import Iterable
+from typing import FrozenSet
+from functools import lru_cache
 from enum import Enum
 from math import inf
 import numpy as np
@@ -36,12 +37,50 @@ class InfrastructureNetwork:
 
         self.graph = nx.Graph()
 
-        self.power_received_cache = dict()
-        self._power_at_node_cache = dict()
-        self._sinr_cache = dict()
         self.sink = None
         self.sources = set()
         self.intermediates = set()
+
+        # transparent caching per instance
+        self.power_at_node = self._power_at_node
+        self.sinr = lru_cache(1)(self._sinr)
+        self.power_at_node = lru_cache(1)(self._power_at_node)
+        self.power_received_dbm = lru_cache(None)(self._power_received_dbm)
+
+    def _reset_caches(self):
+        nodes = len(self.nodes())
+
+        if hasattr(self, "sinr"):
+            self.sinr.cache_clear()
+        # Enough space for all pairwise SINRs for 20 different
+        # configurations of sending nodes. Most relevant is the "no
+        # sending nodes" case, which will happen all the time.
+        sinr_maxsize = min(20 * nodes ** 2, 10 * 1024)  # upper bound
+        self.sinr = lru_cache(maxsize=sinr_maxsize)(self._sinr)
+
+        if hasattr(self, "power_at_node"):
+            self.power_at_node.cache_clear()
+        self.power_at_node = lru_cache(maxsize=100 * nodes)(
+            self._power_at_node
+        )
+
+        if hasattr(self, "power_received_dbm"):
+            self.power_received_dbm.cache_clear()
+        self.power_received_dbm = lru_cache(maxsize=nodes)(
+            self._power_received_dbm
+        )
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # don't pickle caches
+        del state["sinr"]
+        del state["power_at_node"]
+        del state["power_received_dbm"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._reset_caches()
 
     def nodes(self):
         """Returns all infrastructure nodes"""
@@ -100,9 +139,6 @@ class InfrastructureNetwork:
         if name is None:
             name = self._generate_name()
 
-        # reset caches
-        self._power_at_node_cache = dict()
-        self._sinr_cache = dict()
         self.graph.add_node(
             name,
             kind=kind,
@@ -110,6 +146,7 @@ class InfrastructureNetwork:
             capacity=capacity,
             transmit_power_dbm=transmit_power_dbm,
         )
+        self._reset_caches()
         return name
 
     def capacity(self, node):
@@ -138,57 +175,42 @@ class InfrastructureNetwork:
                     min_distance = dist
         return min_distance
 
-    def power_received_dbm(self, source, target):
+    def _power_received_dbm(self, source, target):
         """Power received at sink if source sends at full power"""
-        cached = self.power_received_cache.get((source, target))
-        if cached is None:
-            source_node = self.graph.nodes[source]
-            target_node = self.graph.nodes[target]
-            src_x, src_y = source_node["pos"]
-            trg_x, trg_y = target_node["pos"]
-            distance = wsignal.distance(src_x, src_y, trg_x, trg_y)
-            transmit_power_dbm = source_node["transmit_power_dbm"]
-            cached = wsignal.power_received(distance, transmit_power_dbm)
-            self.power_received_cache[(source, target)] = cached
-        return cached
+        source_node = self.graph.nodes[source]
+        target_node = self.graph.nodes[target]
+        src_x, src_y = source_node["pos"]
+        trg_x, trg_y = target_node["pos"]
+        distance = wsignal.distance(src_x, src_y, trg_x, trg_y)
+        transmit_power_dbm = source_node["transmit_power_dbm"]
+        return wsignal.power_received(distance, transmit_power_dbm)
 
-    def power_at_node(self, node: str, senders: Iterable[str]):
+    def _power_at_node(self, node: str, senders: FrozenSet[str]):
         """Calculates the amount of power a node receives (signal+noise)
         assuming only `senders` sends"""
-        index = (node, frozenset(senders))
-        cached = self._power_at_node_cache.get(index)
-        if cached is None:
-            # We need to convert to watts for addition (log scale can only
-            # multiply)
-            received_power_watt = 0
-            for sender in senders:
-                p_r = self.power_received_dbm(sender, node)
-                received_power_watt += wsignal.dbm_to_watt(p_r)
-            cached = wsignal.watt_to_dbm(received_power_watt)
-            self._power_at_node_cache[index] = cached
-        return cached
+        # We need to convert to watts for addition (log scale can only
+        # multiply)
+        received_power_watt = 0
+        for sender in senders:
+            p_r = self.power_received_dbm(sender, node)
+            received_power_watt += wsignal.dbm_to_watt(p_r)
 
-    def sinr(self, source: str, target: str, senders: Iterable[str]):
+        return wsignal.watt_to_dbm(received_power_watt)
+
+    def _sinr(self, source: str, target: str, senders: FrozenSet[str]):
         """
         SINR assuming only `senders` are sending.
         """
-        index = (source, target, frozenset(senders))
-        cached = self._sinr_cache.get(index)
-        if cached is None:
-            received_signal_dbm = self.power_received_dbm(source, target)
+        received_signal_dbm = self.power_received_dbm(source, target)
 
-            # everything already sending is assumed to be interference
-            received_interference_dbm = self.power_at_node(
-                target, senders=senders
-            )
+        # everything already sending is assumed to be interference
+        received_interference_dbm = self.power_at_node(target, senders=senders)
 
-            cached = wsignal.sinr(
-                received_signal_dbm,
-                received_interference_dbm,
-                self.noise_floor_dbm,
-            )
-            self._sinr_cache[index] = cached
-        return cached
+        return wsignal.sinr(
+            received_signal_dbm,
+            received_interference_dbm,
+            self.noise_floor_dbm,
+        )
 
     def _generate_name(self):
         self._last_id += 1
