@@ -28,9 +28,10 @@ def random_infrastructure(num_sources: int, rand):
     The resulting nodes will be distributed uniformly at random in a
     25m x 25m room.
     """
-    num_intermediates = round(truncnorm(rand, mean=2, sd=2, low=0))
+    # 5 intermediates + 2 sources + 1 sink
+    num_intermediates = round(truncnorm(rand, mean=5, sd=3, low=0))
     pos_dist = lambda: rand.uniform(low=(0, 0), high=(25, 25))
-    capacity_dist = lambda: rand.exponential(10)
+    capacity_dist = lambda: truncnorm(rand, mean=10, sd=5, low=0)
 
     mean_transmit_power_dbm = 30  # FCC limit for a wifi router is 36dBm
     power_dist = lambda: rand.normal(mean_transmit_power_dbm, 10)
@@ -42,12 +43,13 @@ def random_infrastructure(num_sources: int, rand):
 
 def random_overlay(num_sources: int, rand):
     """Generates a randomized overlay graph with default parameters"""
-    num_intermediates = round(truncnorm(rand, mean=1, sd=3, low=0))
+    # 3 intermediates + 2 sources + 1 sink
+    num_intermediates = round(truncnorm(rand, mean=3, sd=2, low=0))
     pairwise_connection = lambda: rand.rand() < 0.01
-    compute_requirement_dist = lambda: rand.exponential(5)
+    compute_requirement_dist = lambda: truncnorm(rand, mean=5, low=0, sd=2)
     # datarate in bits/s with an assumed bandwidth of 1 (i.e. equivalent
     # to SINRth)
-    datarate_dist = lambda: rand.exponential(5)
+    datarate_dist = lambda: truncnorm(rand, mean=5, low=0, sd=3)
 
     return _random_overlay(
         num_intermediates,
@@ -62,7 +64,7 @@ def random_overlay(num_sources: int, rand):
 def random_embedding(rand):
     """Generate matching random infrastructure + overlay + embedding"""
     # at least one source, has to match between infra and overlay
-    num_sources = round(rand.exponential(2)) + 1
+    num_sources = round(truncnorm(rand, mean=2, sd=1, low=1))
 
     while True:
         infra = random_infrastructure(num_sources, rand)
