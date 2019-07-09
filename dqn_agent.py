@@ -88,7 +88,7 @@ def main():
         dueling=False,
         prioritized=True,
         print_freq=1,
-        train_freq=10,
+        train_freq=1,
         batch_size=32,
         checkpoint_freq=1000,
         total_timesteps=100000,
