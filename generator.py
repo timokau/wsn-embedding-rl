@@ -28,7 +28,7 @@ def random_infrastructure(num_sources: int, rand):
     The resulting nodes will be distributed uniformly at random in a
     25m x 25m room.
     """
-    num_intermediates = round(truncnorm(rand, mean=10, sd=10, low=0))
+    num_intermediates = round(truncnorm(rand, mean=2, sd=2, low=0))
     pos_dist = lambda: rand.uniform(low=(0, 0), high=(25, 25))
     capacity_dist = lambda: rand.exponential(10)
 
@@ -42,7 +42,7 @@ def random_infrastructure(num_sources: int, rand):
 
 def random_overlay(num_sources: int, rand):
     """Generates a randomized overlay graph with default parameters"""
-    num_intermediates = round(truncnorm(rand, mean=6, sd=10, low=0))
+    num_intermediates = round(truncnorm(rand, mean=1, sd=3, low=0))
     pairwise_connection = lambda: rand.rand() < 0.01
     compute_requirement_dist = lambda: rand.exponential(5)
     # datarate in bits/s with an assumed bandwidth of 1 (i.e. equivalent
