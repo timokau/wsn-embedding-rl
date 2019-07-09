@@ -9,28 +9,24 @@ import networkx as nx
 from infrastructure import InfrastructureNetwork
 from overlay import OverlayNetwork
 
+DEBUG = False
+
 
 class ENode:
     """A node representing a possible or actual embedding"""
 
-    def __init__(
-        self,
-        block,
-        node,
-        # type has to be a string in recursive type definitions
-        predecessor: "ENode" = None,
-    ):
-        self.block = block
+    def __init__(self, acting_as, node, target=None):
         self.node = node
-        self.relay = self.block is None
-        self.predecessor = predecessor
+        self.acting_as = acting_as
+        self.target = target
+
+        self.relay = self.target is not None
+        self.block = self.acting_as if self.target is None else None
+
+        if not self.relay:
+            self.target = self.acting_as
+
         self._hash = None
-        if self.block is not None:
-            self.acting_as = block
-        elif self.predecessor is not None:
-            self.acting_as = predecessor.acting_as
-        else:
-            self.acting_as = None
 
     def __repr__(self):
         result = ""
@@ -39,6 +35,8 @@ class ENode:
         elif self.acting_as is not None:
             result += f"({self.acting_as})-"
         result += str(self.node)
+        if self.relay:
+            result += f"-({self.target})"
         return result
 
     def __eq__(self, other):
@@ -46,10 +44,16 @@ class ENode:
             return False
 
         return (
-            self.block == other.block
+            self.acting_as == other.acting_as
             and self.node == other.node
-            and (not self.relay or self.predecessor == other.predecessor)
+            and self.target == other.target
         )
+
+    def __lt__(self, other):
+        # For deterministic sorting
+        repr_tupl = (self.acting_as, self.node, self.target)
+        other_repr = (other.acting_as, other.node, other.target)
+        return repr_tupl < other_repr
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -57,10 +61,7 @@ class ENode:
     def __hash__(self):
         # cache the hashes, since hashing is quite expensive
         if self._hash is None:
-            if self.relay:
-                self._hash = hash((self.block, self.node, self.predecessor))
-            else:
-                self._hash = hash((self.block, self.node))
+            self._hash = hash((self.acting_as, self.node, self.target))
         return self._hash
 
 
@@ -95,7 +96,8 @@ class PartialEmbedding:
         self._num_outlinks_embedded = defaultdict(int)
         self._capacity_used = defaultdict(float)
         self._transmissions_at = defaultdict(list)
-        self.embedded_links = []
+        self.link_embeddings = dict()
+        self.finished_embeddings = set()
 
         self._build_possibilities_graph(source_mapping)
 
@@ -113,6 +115,8 @@ class PartialEmbedding:
             for (source, target, data) in out_edges
             if not data["chosen"]
         ]
+        # make sure the order is deterministic
+        possibilities.sort(key=lambda pos: (pos[0], pos[1], pos[2]))
         return possibilities
 
     def nodes(self):
@@ -138,16 +142,18 @@ class PartialEmbedding:
         self.choose_embedding(embedding)
 
     def _add_relay_nodes(self):
-        for node in self.infra.nodes():
-            embedding = ENode(None, node)
-            self.add_enode(embedding, relay=True)
+        for (u, v) in self.overlay.links():
+            for node in self.infra.nodes():
+                enode = ENode(u, node, v)
+                self.add_enode(enode)
 
-    def try_add_enode(self, enode: ENode, relay=False):
+    def try_add_enode(self, enode: ENode):
         """Adds a given ENode to the graph"""
         if not self._node_can_carry(enode.node, enode.block):
             return False
-        self._by_block[enode.block].add(enode)
+
         self._by_node[enode.node].add(enode)
+        self._by_block[enode.acting_as].add(enode)
 
         kind = "intermediate"
         if enode.block in self.overlay.sources:
@@ -155,18 +161,17 @@ class PartialEmbedding:
         elif enode.block == self.overlay.sink:
             kind = "sink"
 
-        self.graph.add_node(enode, chosen=False, relay=relay, kind=kind)
+        self.graph.add_node(enode, chosen=False, relay=enode.relay, kind=kind)
 
         # add the necessary edges
-        self._by_block[enode.acting_as].add(enode)
         for ts in range(self.used_timeslots + 1):
             self._add_outedges(enode, ts)
 
         return True
 
-    def add_enode(self, enode: ENode, relay=False):
+    def add_enode(self, enode: ENode):
         """Adds an enode, failing if it is not possible"""
-        assert self.try_add_enode(enode, relay)
+        assert self.try_add_enode(enode)
 
     def choose_embedding(self, enode: ENode):
         """Marks an potential embedding as chosen and updates the rest
@@ -191,8 +196,17 @@ class PartialEmbedding:
 
             # remove other options for embedding this block
             for option in list(self._by_block[enode.block]):
-                if option != enode:
+                if option != enode and not option.relay:
                     self.remove_enode(option)
+
+            # remove unnecessary relays going over the same node
+            for block in self.overlay.blocks():
+                for option in [
+                    ENode(block, enode.node, enode.acting_as),
+                    ENode(enode.acting_as, enode.node, block),
+                ]:
+                    if self.graph.has_node(option):
+                        self.remove_enode(option)
 
     def try_add_edge(self, source: ENode, target: ENode, timeslot: int):
         """Tries to a possible connection to the graph if it is
@@ -201,6 +215,12 @@ class PartialEmbedding:
         # silently introduce bugs
         assert self.graph.has_node(source)
         assert self.graph.has_node(target)
+
+        # this kind of edge can never be feasible, therefore trying to
+        # add it would be a bug
+        assert not target.relay or target.acting_as == source.acting_as
+        assert not source.relay or source.target == target.target
+
         self.graph.add_edge(
             source,
             target,
@@ -228,53 +248,45 @@ class PartialEmbedding:
         self.graph.edges[(source, target, timeslot)]["chosen"] = True
         self._nodes_sending_in[timeslot].add(source.node)
 
-        # if this completes a link
-        if not target.relay:
-            link = (source.acting_as, target.acting_as)
-            self.embedded_links += [link]
+        link = (source.acting_as, target.target)
+        # if this starts a link embedding
+        if not source.relay:
+            self.link_embeddings[link] = [(source, None)]
+        self.link_embeddings[link].append((target, timeslot))
 
-            # update other edges that may have represented this link
-            for (u, v, d) in list(
-                self.graph.out_edges(
-                    nbunch=self._by_block[source.acting_as], data=True
-                )
-            ):
-                if d["chosen"]:
-                    continue
-                if not self._connection_necessary(u, v):
-                    self.remove_connection(u, v, d["timeslot"])
+        # update other edges that may have represented this link
+        for (u, v, d) in list(
+            self.graph.out_edges(
+                nbunch=self._by_block[source.acting_as], data=True
+            )
+        ):
+            if not d["chosen"] and not self._connection_necessary(u, v):
+                self.remove_connection(u, v, d["timeslot"])
+
+        # if this finishes a link embedding
+        if not target.relay:
+            self.finished_embeddings.add(link)
+            for node in self.infra.nodes():
+                relay = ENode(link[0], node, link[1])
+                data = self.graph.nodes.get(relay)
+                if data is not None and not data["chosen"]:
+                    self.remove_enode(relay)
 
         if source.relay:
-            # if the connection is originating as a relay, the
-            # connection was already counted once. It is only counted
-            # again if the path forks, i.e. this is the second outedge
-            # of the relay.
-            if self.graph.nodes[source].get("has_out", False):
-                self._num_outlinks_embedded[source.acting_as] += 1
-            self.graph.nodes[source]["has_out"] = True
-        else:
-            # we count this as an embedded outlink, even if the link is
-            # not completed yet. Once we have chosen the beginning of a
-            # link, it does not make sense to begin the link in another
-            # way too.
-            self._num_outlinks_embedded[source.acting_as] += 1
+            self._remove_other_connections_from(source)
 
         self._transmissions_at[timeslot].append((source, target))
-
-        for enode in self._by_block[source.acting_as]:
-            if not self._unembedded_outlinks_left(enode):
-                self._remove_other_connections_from(enode)
-
         self._remove_connections_infeasible_in(timeslot)
 
     def _build_possibilities_graph(
         self, source_mapping: List[Tuple[str, str]]
     ):
         self._add_possible_intermediate_embeddings()
+        self._add_relay_nodes()
         self._embed_sink()
         self._embed_sources(source_mapping)
-        self._add_relay_nodes()
         self.add_timeslot()
+        self._remove_unnecessary_nodes()
 
     def remove_connection(self, source: ENode, target: ENode, timeslot: int):
         """Removes a connection given its source, target and timeslot"""
@@ -284,10 +296,11 @@ class PartialEmbedding:
     def remove_enode(self, enode: ENode):
         """Removes a node if it is not chosen"""
         if self.graph.nodes[enode]["chosen"]:
-            return
+            return False
         self._by_block[enode.acting_as].remove(enode)
         self._by_node[enode.node].remove(enode)
         self.graph.remove_node(enode)
+        return True
 
     def _invalidates_chosen(self, source, timeslot):
         """Checks if node sending would invalidate datarate of chosen action"""
@@ -309,43 +322,38 @@ class PartialEmbedding:
         capacity = self.known_capacity(source.node, target.node, timeslot)
         return capacity >= thresh
 
-    def _unembedded_outlinks_left(self, enode):
-        """Checks if there are any unembedded outgoing links left"""
-        block = enode.acting_as
-        if block is None:
-            return True
-
-        embedded = self._num_outlinks_embedded[block]
-        if enode.relay:
-            # a relay was already counted, but is part of a not yet
-            # completed link. It should not count at the tip of the
-            # unfinished link
-            if not self.graph.nodes[enode].get("has_out", False):
-                embedded -= 1
-
-        num_out_links_to_embed = self.overlay.graph.out_degree(block)
-
-        return num_out_links_to_embed > embedded
-
-    def _completes_already_embedded_link(self, source, target):
-        """Checks if a new connection would doubly embed a link"""
-        if target.relay or source.acting_as is None:
+    def _node_already_visited_on_path(self, source, target):
+        # self loops within a block are okay
+        if not source.relay and not target.relay:
             return False
 
-        if (source.acting_as, target.acting_as) in self.embedded_links:
-            return True
+        link = (source.acting_as, target.target)
+        visited_nodes = [
+            n.node for (n, t) in self.link_embeddings.get(link, [])
+        ]
+        return target.node in visited_nodes
 
+    def _path_already_started(self, source, target):
+        if source.relay:
+            return False
+        link = (source.acting_as, target.target)
+        if self.link_embeddings.get(link) is not None:
+            return True
         return False
 
-    def _connection_already_taken(self, source, target):
-        return (source, target) in self._taken_edges.keys()
+    def _source_already_in_path(self, source, target):
+        link = (source.acting_as, target.target)
+        path = self.link_embeddings.get(link, [])
+        node_path = [enode.node for (enode, _ts) in path]
+        # last one doesn't count
+        return source.node in node_path[:-1]
 
     def _connection_necessary(self, source, target):
-        if self._completes_already_embedded_link(source, target):
+        if self._node_already_visited_on_path(source, target):
             return False
-        if not self._unembedded_outlinks_left(source):
+        if self._path_already_started(source, target):
             return False
-        if self._connection_already_taken(source, target):
+        if self._source_already_in_path(source, target):
             return False
         return True
 
@@ -467,30 +475,21 @@ class PartialEmbedding:
 
     def _add_outedges(self, enode: ENode, timeslot: int):
         """Connect a new ENode to all its possible successors"""
-        # avoid going in circles within a link embedding
-        already_visited = [(enode.acting_as, enode.node)]
-        cur = enode
-        while cur.predecessor is not None:
-            cur = cur.predecessor
-            already_visited.append((cur.acting_as, cur.node))
+        if enode.relay:
+            outlinks = {(enode.acting_as, enode.target)}
+        else:
+            embedding_already_started = self.link_embeddings.keys()
+            outlinks = set(
+                self.overlay.graph.out_edges(nbunch=[enode.acting_as])
+            ).difference(embedding_already_started)
 
-        # could go to any node as a relay
-        for node in self.infra.nodes():
-            # Avoid circles. It is important that we can reliably
-            # determine when there are no more actions to take and the
-            # embedding is "failed", circles make that hard.
-            if (enode.acting_as, node) not in already_visited:
-                self.try_add_edge(enode, ENode(None, node), timeslot)
-
-        out_edges = self.overlay.graph.out_edges(nbunch=[enode.acting_as])
-
-        for (_, v) in out_edges:
+        for (_, v) in outlinks:
+            for node in self.infra.nodes():
+                relay_target = ENode(enode.acting_as, node, v)
+                if self.graph.nodes.get(relay_target) is not None:
+                    self.try_add_edge(enode, relay_target, timeslot)
             for option in self._by_block[v]:
-                # do not connect to used relays, do not go in circles
-                if (
-                    not option.relay
-                    and (v, option.node) not in already_visited
-                ):
+                if not option.relay:
                     self.try_add_edge(enode, option, timeslot)
 
     def add_timeslot(self):
@@ -499,39 +498,86 @@ class PartialEmbedding:
         for enode in self.nodes():
             self._add_outedges(enode, self.used_timeslots)
 
+    def _check_invariants(self):
+        """For debugging only, slow"""
+        # pylint: disable=too-many-return-statements,too-many-branches
+        if not DEBUG:
+            return (True, None)
+
+        for (u, v, d) in self.graph.edges(data=True):
+            t = d["timeslot"]
+            chosen = d["chosen"]
+            if not chosen and not self._connection_necessary(u, v):
+                return (False, f"({u}, {v}, {t}) is not necessary")
+            if not chosen and not self._connection_feasible_in_timeslot(
+                u, v, t
+            ):
+                return (False, f"({u}, {v}, {t}) is not feasible")
+            if (u.acting_as, v.target) not in self.overlay.links():
+                return (False, f"({u}, {v}, {t}) does not represent any link")
+
+        for enode in self.nodes():
+            if enode.relay and self.graph.nodes[enode]["chosen"]:
+                out_edges = self.graph.out_edges(nbunch=[enode], data=True)
+                has_chosen_out = False
+                for (u, v, d) in out_edges:
+                    if d["chosen"]:
+                        has_chosen_out = True
+                        break
+                if has_chosen_out and len(list(out_edges)) > 1:
+                    return (
+                        False,
+                        f"Relay {enode} has too many out edges: {out_edges}",
+                    )
+
+        for (enode, deg) in self.graph.in_degree():
+            if enode.relay and self.graph.nodes[enode]["chosen"]:
+                if deg != 1:
+                    return (False, f"Chosen relay {enode} has indeg {deg}")
+
+        return (True, None)
+
+    def _remove_unnecessary_nodes(self):
+        removed = True
+        while removed:
+            indeg = self.graph.in_degree()
+            removed = False
+            for enode in [n for (n, deg) in indeg if deg == 0]:
+                if self.remove_enode(enode):
+                    removed = True
+
     def take_action(self, source: ENode, target: ENode, timeslot: int):
         """Take an action represented by an edge and update the graph"""
         if (source, target, timeslot) not in self.possibilities():
             return False
 
         # this should never be false, that would be a bug
+        assert self._connection_feasible_in_timeslot(source, target, timeslot)
+        assert self._connection_necessary(source, target)
         assert self._connection_feasible(source, target, timeslot)
 
         self._taken_edges[(source, target)] = timeslot
         self._taken_edges_in[timeslot].add((source, target))
-
-        if target.relay:
-            self._remove_connections_between(source, target)
-            target = ENode(
-                block=target.block, node=target.node, predecessor=source
-            )
-            self.add_enode(target)
-            self.add_edge(source, target, timeslot)
 
         self.choose_embedding(target)
         self.choose_edge(source, target, timeslot)
 
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
+
+        self._remove_unnecessary_nodes()
+
+        (result, reason) = self._check_invariants()
+        if not result:
+            raise Exception(
+                # pylint: disable=line-too-long
+                f"Action ({source}, {target}, {timeslot}) violates invariants: {reason}"
+            )
         return True
 
     def is_complete(self):
         """Determines if all blocks and links are embedded"""
-        # check that each link is embedded
-        for link in self.overlay.links():
-            if link not in self.embedded_links:
-                return False
-        return True
+        return set(self.overlay.links()) == self.finished_embeddings
 
     def __str__(self):
         result = "Embedding with:\n"
@@ -541,19 +587,4 @@ class PartialEmbedding:
 
     def construct_link_mappings(self):
         """Returns a mapping from links to paths"""
-        result = dict()
-        for (b1, b2) in self.embedded_links:
-            source_embedding = self.taken_embeddings[b1]
-            target_embedding = self.taken_embeddings[b2]
-            cur = target_embedding
-            path = []
-            while cur != source_embedding:
-                in_edges = self.graph.in_edges(keys=True, nbunch=[cur])
-                for (u, v, k) in in_edges:
-                    if u.acting_as == b1:
-                        path.append((v, k))
-                        cur = u
-                        break
-            path.reverse()
-            result[(b1, b2)] = path
-        return result
+        return self.link_embeddings
