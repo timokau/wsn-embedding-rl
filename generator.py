@@ -12,7 +12,7 @@ from embedding import PartialEmbedding
 import baseline_agent
 
 
-def truncnorm(mean=0, sd=1, low=-np.infty, upp=np.infty, rand=np.random):
+def truncnorm(rand, mean=0, sd=1, low=-np.infty, upp=np.infty):
     """Convenience wrapper around scipys truncnorm"""
     dist = stats.truncnorm(
         (low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd
@@ -28,7 +28,7 @@ def random_infrastructure(num_sources: int, rand):
     The resulting nodes will be distributed uniformly at random in a
     25m x 25m room.
     """
-    num_intermediates = round(truncnorm(mean=10, sd=10, low=0))
+    num_intermediates = round(truncnorm(rand, mean=10, sd=10, low=0))
     pos_dist = lambda: rand.uniform(low=(0, 0), high=(25, 25))
     capacity_dist = lambda: rand.exponential(10)
 
@@ -42,7 +42,7 @@ def random_infrastructure(num_sources: int, rand):
 
 def random_overlay(num_sources: int, rand):
     """Generates a randomized overlay graph with default parameters"""
-    num_intermediates = round(truncnorm(mean=6, sd=10, low=0))
+    num_intermediates = round(truncnorm(rand, mean=6, sd=10, low=0))
     pairwise_connection = lambda: rand.rand() < 0.01
     compute_requirement_dist = lambda: rand.exponential(5)
     # datarate in bits/s with an assumed bandwidth of 1 (i.e. equivalent
@@ -183,8 +183,8 @@ def _random_overlay(
         )
 
     # randomly add links
-    for source in overlay.graph.nodes():
-        for target in overlay.graph.nodes():
+    for source in sorted(overlay.graph.nodes()):
+        for target in sorted(overlay.graph.nodes()):
             if target != source and pairwise_connection():
                 overlay.add_link(source, target)
 
@@ -213,28 +213,27 @@ def _random_overlay(
             not_accessible_from_source.add(node)
 
     # make sure all nodes are reachable from a source
-    for node in not_accessible_from_source:
-        connection = connection_choice(list(accessible_from_source))
+    for node in sorted(not_accessible_from_source):
+        connection = connection_choice(sorted(accessible_from_source))
         overlay.add_link(connection, node)
         accessible_from_source.add(node)
 
     # make sure all nodes can reach the sink
-    for node in no_path_to_sink:
-        connection = connection_choice(list(has_path_to_sink))
+    for node in sorted(no_path_to_sink):
+        connection = connection_choice(sorted(has_path_to_sink))
         overlay.add_link(node, connection)
         has_path_to_sink.add(node)
 
     return overlay
 
 
-def get_random_action(embedding: PartialEmbedding, rand=np.random):
+def get_random_action(embedding: PartialEmbedding, rand):
     """Take a random action on the given partial embedding"""
     possibilities = embedding.possibilities()
     if len(possibilities) == 0:
         return None
     choice = rand.randint(0, len(possibilities))
-    action = possibilities[choice]
-    return action
+    return possibilities[choice]
 
 
 if __name__ == "__main__":

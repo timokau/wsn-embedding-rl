@@ -17,7 +17,7 @@ def main(time_seconds=60, rand=np.random):
         while True:
             if time.time() - total_before > time_seconds:
                 return
-            action = get_random_action(embedding)
+            action = get_random_action(embedding, rand)
             if action is None:
                 break
             action_list.append(action)

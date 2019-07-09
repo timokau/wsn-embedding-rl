@@ -1,5 +1,6 @@
 """Some visual testing"""
 
+import numpy as np
 import matplotlib.patches as mpatches
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Button, TextBox
@@ -51,7 +52,7 @@ class Visualization:
             ]
         )
 
-        random = get_random_action(self.embedding)
+        random = get_random_action(self.embedding, rand=np.random)
         self.text_box_val = str(random)
         self.text_box = TextBox(
             input_text_ax, "Action", initial=self.text_box_val
@@ -78,7 +79,7 @@ class Visualization:
         return None
 
     def _update_textbox(self):
-        next_random = get_random_action(self.embedding)
+        next_random = get_random_action(self.embedding, rand=np.random)
         self.text_box.set_val(
             str(next_random) if next_random is not None else ""
         )
@@ -118,8 +119,6 @@ class Visualization:
 
 
 def _main():
-    import numpy as np
-
     embedding = random_embedding(rand=np.random)
     Visualization(embedding)
     plt.show()
