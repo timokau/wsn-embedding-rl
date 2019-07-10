@@ -57,7 +57,7 @@ def save_episode_result_callback(lcl, _glb):
     if not lcl["done"]:
         return
     episode = len(lcl["episode_rewards"])
-    total_reward = round(lcl["episode_rewards"][-1])
+    total_reward = round(lcl["env"].env.used_timeslots)
     write_dot(
         succinct_representation(lcl["env"].env),
         f"{logger.get_dir()}/result-{episode}-{-total_reward}.dot",
