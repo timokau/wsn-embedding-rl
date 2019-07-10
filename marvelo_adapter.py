@@ -1,6 +1,7 @@
 """Imports marvelo problems and results from csv"""
 
 import os
+import math
 import re
 import csv
 import numpy as np
@@ -52,7 +53,7 @@ def parse_infra(
     sink_source_mapping,
     positions_file,
     source_seed,
-    transmit_power,
+    transmit_power_dbm,
 ):
     """Reads an infrastructure definition in MARVELO format from csvs"""
     # read the files
@@ -79,13 +80,13 @@ def parse_infra(
     specs[-1], specs[sink_idx] = specs[sink_idx], specs[-1]
 
     # construct the infrastructure from the gathered info
-    infra = InfrastructureNetwork()
+    infra = InfrastructureNetwork(bandwidth=1, noise_floor_dbm=-30)
     for (name, capacity, pos) in specs[:1]:
-        infra.add_source(pos, transmit_power, capacity, name)
+        infra.add_source(pos, transmit_power_dbm, capacity, name)
     for (name, capacity, pos) in specs[1:-1]:
-        infra.add_intermediate(pos, transmit_power, capacity, name)
+        infra.add_intermediate(pos, transmit_power_dbm, capacity, name)
     for (name, capacity, pos) in specs[-1:]:
-        infra.set_sink(pos, transmit_power, capacity, name)
+        infra.set_sink(pos, transmit_power_dbm, capacity, name)
 
     return infra
 
@@ -98,7 +99,7 @@ def parse_embedding(
     source_seed,
     blocks_file,
     links_file,
-    transmit_power,
+    transmit_power_dbm,
     datarate,
 ):
     """Reads a problem instance in MARVELO format from csv files"""
@@ -107,7 +108,7 @@ def parse_embedding(
         sink_source_mapping,
         positions_file,
         source_seed,
-        transmit_power,
+        transmit_power_dbm,
     )
     if infra is None:
         return None
@@ -125,10 +126,9 @@ def parse_embedding(
 
 def load_from_dir(basedir):
     """Loads a set of results from a directory with an assumed format"""
-    datarate = 20  # at bitrate 1 equivalent to SINRth 20 linear
-    # can't fix this before I get a reply
-    # pylint: disable=fixme
-    transmit_power = 30  # FIXME get correct value from Haitham
+    # at bitrate 1 equivalent to a linear SINR threshold of 20
+    datarate = math.log(1 + 20, 2)
+    transmit_power_dbm = 30  # == 1W
 
     results_dir = f"{basedir}/resultsTxt"
     param_dir = f"{basedir}/param"
@@ -169,7 +169,7 @@ def load_from_dir(basedir):
             seed,
             blocks_file,
             links_file,
-            transmit_power,
+            transmit_power_dbm,
             datarate,
         )
         result.append((embedding, marvelo_result, info))

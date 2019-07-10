@@ -24,7 +24,7 @@ class InfrastructureNetwork:
     # Instance attributes needed for caching, I think private instance
     # attributes are fine.
 
-    def __init__(self, bandwidth=1, noise_floor_dbm: float = -80):
+    def __init__(self, bandwidth=1, noise_floor_dbm: float = -30):
         self._last_id = 0
         # Link capacity is influenced by the SINR and the bandwidth.
         # Leaving the bandwidth set to 1 will result in a link capacity
