@@ -117,20 +117,6 @@ class WSNEnvironment(gym.Env):
         self._instance_queue = Queue(QUEUE_SIZE)
         self._pool = None
 
-    def _query_actions(self):
-        self.actions = self.env.possibilities()
-        self._get_observation()
-
-        def key(a):
-            (u, v, t) = a
-            return (
-                self.last_translation_dict[u],
-                self.last_translation_dict[v],
-                t,
-            )
-
-        self.actions.sort(key=key)
-
     def _get_observation(self):
         # pylint: disable=too-many-locals
         # build graphs from scratch, since we need to change the node
@@ -227,9 +213,9 @@ class WSNEnvironment(gym.Env):
             # are bad
             reward -= 10
 
-        ob = self._get_observation()
+        self._last_ob = self._get_observation()
 
-        return ob, reward, done, {}
+        return self._last_ob, reward, done, {}
 
     @property
     def action_space(self):
@@ -268,7 +254,8 @@ class WSNEnvironment(gym.Env):
         self.env = embedding
         self.restarts = 0
         self.last_translation_dict = dict()
-        return self._get_observation()
+        self._last_ob = self._get_observation()
+        return self._last_ob
 
     def render(self, mode="human"):
         raise NotImplementedError()
