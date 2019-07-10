@@ -1,6 +1,5 @@
 """Imports marvelo problems and results from csv"""
 
-import random
 import os
 import re
 import csv
@@ -48,7 +47,13 @@ def parse_overlay(blocks_file, links_file, datarate):
     return overlay
 
 
-def parse_infra(nodes_file, positions_file, source_seed, transmit_power):
+def parse_infra(
+    nodes_file,
+    sink_source_mapping,
+    positions_file,
+    source_seed,
+    transmit_power,
+):
     """Reads an infrastructure definition in MARVELO format from csvs"""
     # read the files
     names = []
@@ -67,10 +72,7 @@ def parse_infra(nodes_file, positions_file, source_seed, transmit_power):
 
     # unfortunately the source and sink are not indicated in the csv
     # files, so we have to re-generate them
-    indices = list(range(len(specs)))
-    random.seed(source_seed)
-    source_idx = random.choice(indices)
-    sink_idx = random.choice(indices)
+    (sink_idx, source_idx) = sink_source_mapping[(source_seed, len(specs))]
     if source_idx == sink_idx:
         return None
 
@@ -90,8 +92,10 @@ def parse_infra(nodes_file, positions_file, source_seed, transmit_power):
     return infra
 
 
+# pylint: disable=too-many-arguments
 def parse_embedding(
     nodes_file,
+    sink_source_mapping,
     positions_file,
     source_seed,
     blocks_file,
@@ -101,7 +105,11 @@ def parse_embedding(
 ):
     """Reads a problem instance in MARVELO format from csv files"""
     infra = parse_infra(
-        nodes_file, positions_file, source_seed, transmit_power
+        nodes_file,
+        sink_source_mapping,
+        positions_file,
+        source_seed,
+        transmit_power,
     )
     if infra is None:
         return None
@@ -129,6 +137,16 @@ def load_from_dir(basedir):
 
     result_name_pat = re.compile(r"n(\d+)b(\d+)s(\d+).txt")
 
+    # pre-generated with the python2 RNG by simply setting the seed and
+    # then taking random.choice(range(nr_nodes)) twice
+    sink_source_mapping = dict()
+    sink_source_file = f"{basedir}/sink_source_mapping.csv"
+    for (seed, nodes, sink_idx, source_idx) in csv_to_list(sink_source_file):
+        sink_source_mapping[(int(seed), int(nodes))] = (
+            int(sink_idx),
+            int(source_idx),
+        )
+
     result = []
     for result_file in os.listdir(results_dir):
         match = result_name_pat.match(result_file)
@@ -148,6 +166,7 @@ def load_from_dir(basedir):
 
         embedding = parse_embedding(
             nodes_file,
+            sink_source_mapping,
             positions_file,
             seed,
             blocks_file,
