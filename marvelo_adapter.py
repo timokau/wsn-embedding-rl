@@ -70,8 +70,6 @@ def parse_infra(
     positions = np.reshape(positions, (-1, 2))
     specs = list(zip(names, capacities, positions))
 
-    # unfortunately the source and sink are not indicated in the csv
-    # files, so we have to re-generate them
     (sink_idx, source_idx) = sink_source_mapping[(source_seed, len(specs))]
     if source_idx == sink_idx:
         return None
