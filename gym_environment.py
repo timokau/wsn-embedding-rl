@@ -272,3 +272,15 @@ class WSNEnvironment(gym.Env):
 
     def render(self, mode="human"):
         raise NotImplementedError()
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # don't pickle pool or queue
+        del state["_pool"]
+        del state["_instance_queue"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._instance_queue = Queue(QUEUE_SIZE)
+        self._pool = None
