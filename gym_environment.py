@@ -132,6 +132,7 @@ class WSNEnvironment(gym.Env):
         self.actions.sort(key=key)
 
     def _get_observation(self):
+        # pylint: disable=too-many-locals
         # build graphs from scratch, since we need to change the node
         # indexing (graph_nets can only deal with integer indexed nodes)
         input_graph = nx.MultiDiGraph()
@@ -189,14 +190,14 @@ class WSNEnvironment(gym.Env):
 
         # no globals in input
         input_graph.graph["features"] = np.array([0.0])
-        # return infra_graph
 
         gt = utils_np.networkxs_to_graphs_tuple([input_graph])
 
         # build action indices here to make sure the indices matches the
         # one the network is seeing
         self.actions = []
-        for (u, v, d) in zip(gt.senders, gt.receivers, gt.edges):
+        edges = gt.edges if gt.edges is not None else []  # may be None
+        for (u, v, d) in zip(gt.senders, gt.receivers, edges):
             possible = d[POSSIBLE_IDX] == 1
             if not possible:
                 continue
