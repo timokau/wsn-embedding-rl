@@ -1,6 +1,7 @@
 """Generation of new problem instances"""
 
 import time
+import math
 
 import numpy as np
 from scipy import stats
@@ -34,7 +35,7 @@ def random_infrastructure(num_sources: int, rand):
     capacity_dist = lambda: truncnorm(rand, mean=10, sd=5, low=0)
 
     mean_transmit_power_dbm = 30  # FCC limit for a wifi router is 36dBm
-    power_dist = lambda: rand.normal(mean_transmit_power_dbm, 10)
+    power_dist = lambda: rand.normal(mean_transmit_power_dbm, 2)
 
     return _random_infrastructure(
         num_intermediates, num_sources, pos_dist, capacity_dist, power_dist
@@ -47,9 +48,9 @@ def random_overlay(num_sources: int, rand):
     num_intermediates = round(truncnorm(rand, mean=3, sd=2, low=0))
     pairwise_connection = lambda: rand.rand() < 0.01
     compute_requirement_dist = lambda: truncnorm(rand, mean=5, low=0, sd=2)
-    # datarate in bits/s with an assumed bandwidth of 1 (i.e. equivalent
-    # to SINRth)
-    datarate_dist = lambda: truncnorm(rand, mean=5, low=0, sd=3)
+    # equivalent to a linear SINRth of 20, which is what marvelo uses
+    mean_datarate = math.log(1 + 20, 2)
+    datarate_dist = lambda: truncnorm(rand, mean=mean_datarate, low=0, sd=1)
 
     return _random_overlay(
         num_intermediates,
