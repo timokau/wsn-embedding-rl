@@ -3,6 +3,7 @@
 import os
 import re
 import csv
+import time
 from collections import defaultdict
 import numpy as np
 from scipy import stats
@@ -28,6 +29,7 @@ def play_episode(act, embedding):
     env = gym_environment.WSNEnvironment()
     obs = env.reset(embedding)
     total_reward = 0
+    before = time.time()
     while True:
         act_result = act(obs)
         action = act_result[0][0]
@@ -35,7 +37,8 @@ def play_episode(act, embedding):
         total_reward += rew
         obs = new_obs
         if done:
-            return (total_reward, env.env.used_timeslots)
+            elapsed = time.time() - before
+            return (total_reward, env.env.used_timeslots, elapsed)
 
 
 def compare_marvelo_with_agent(agent_file, marvelo_dir="marvelo_data"):
@@ -47,19 +50,24 @@ def compare_marvelo_with_agent(agent_file, marvelo_dir="marvelo_data"):
         if embedding is None:
             continue
         (nodes, blocks, seed) = info
-        (agent_reward, agent_ts) = play_episode(act, embedding)
+        (agent_reward, agent_ts, elapsed) = play_episode(act, embedding)
         print(
             f"MARVELO: {marvelo_result}, Agent: {agent_ts}, ({agent_reward})"
         )
-        results.append((nodes, blocks, seed, marvelo_result, agent_ts))
+        results.append(
+            (nodes, blocks, seed, marvelo_result, agent_ts, elapsed)
+        )
     return results
 
 
 def marvelo_results_to_csvs(results, dirname):
     """Writes marvelo results to tables as expected by pgfplots"""
+    # pylint: disable=too-many-locals
     by_block = defaultdict(list)
-    for (nodes, blocks, seed, marvelo_result, agent_ts) in results:
-        by_block[blocks].append((nodes, seed, marvelo_result, agent_ts))
+    for (nodes, blocks, seed, marvelo_result, agent_ts, elapsed) in results:
+        by_block[blocks].append(
+            (nodes, seed, marvelo_result, agent_ts, elapsed)
+        )
 
     try:
         os.mkdir(dirname)
@@ -67,13 +75,17 @@ def marvelo_results_to_csvs(results, dirname):
         pass
 
     all_gaps = []
+    all_times = []
     for (block, block_results) in by_block.items():
         filename = f"{dirname}/marvelo_b{block}.csv"
         gaps = defaultdict(list)
-        for (nodes, seed, marvelo_result, agent_ts) in block_results:
+        times = defaultdict(list)
+        for (nodes, seed, marvelo_result, agent_ts, elapsed) in block_results:
             gap = 100 * (agent_ts - marvelo_result) / marvelo_result
             gaps[nodes].append(gap)
             all_gaps.append(gap)
+            all_times.append(1000 * elapsed)
+            times[nodes].append(1000 * elapsed)
 
         with open(filename, "w") as csvfile:
             writer = csv.writer(csvfile)
@@ -84,9 +96,20 @@ def marvelo_results_to_csvs(results, dirname):
                 err_high = stats.sem(gap_vals)
                 writer.writerow((f"{nodes} nodes", mean, err_low, err_high))
 
-    mean = np.mean(all_gaps)
-    sem = stats.sem(all_gaps)
-    print(f"Overall: mean {mean}, sem {sem}")
+        filename = f"{dirname}/times_b{block}.csv"
+        with open(filename, "w") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(("x", "y", "error-", "error+"))
+            for (nodes, time_vals) in times.items():
+                mean = np.mean(time_vals)
+                err_low = stats.sem(time_vals)
+                err_high = stats.sem(time_vals)
+                writer.writerow((nodes, mean, err_low, err_high))
+
+    mean = round(np.mean(all_gaps), 2)
+    sem = round(stats.sem(all_gaps), 2)
+    times_mean = round(np.mean(all_times), 2)
+    print(f"Overall: mean {mean}, sem {sem}, elapsed {times_mean}")
 
 
 def find_latest_model_in_pwd(regex=r"model.*\.pkl"):
