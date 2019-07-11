@@ -56,7 +56,7 @@ def watt_to_dbm(watts: float):
 
 
 def log_path_loss(
-    distance_meters: float, loss_exponent: int = 4, system_loss: float = 0
+    distance_meters: float, loss_exponent: int = 2, system_loss: float = 0
 ):
     """
     Returns the approximated path loss (in dB) over a certain distance
@@ -87,7 +87,7 @@ def log_path_loss(
                   = signal_watt / d**e
                   =: signal_watt * loss_linear
 
-    => loss_linear = 1/d**2
+    => loss_linear = 1/d**e
     """
     # decibels relative to 1m
     if distance_meters != 0:
