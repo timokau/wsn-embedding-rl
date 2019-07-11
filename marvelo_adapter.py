@@ -64,11 +64,11 @@ def parse_infra(
         names.append(name)
         capacities.append(float(capacity))
     for csvline in csv_to_list(positions_file, sep=";"):
-        positions.extend([float(pos) for pos in csvline[1:]])
+        positions.append([float(pos) for pos in csvline[1:]])
 
-    # the positions are saved in a weird format, probably a reshape
-    # mistake when saving
-    positions = np.reshape(positions, (-1, 2))
+    # the positions are saved in a weird format, probably a mistake when
+    # saving
+    positions = np.transpose(positions)
     specs = list(zip(names, capacities, positions))
 
     (sink_idx, source_idx) = sink_source_mapping[(source_seed, len(specs))]
