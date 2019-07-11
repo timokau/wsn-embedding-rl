@@ -9,5 +9,5 @@ nix-shell --run 'python3 dqn_agent.py'
 and the evaluation with
 
 ```
-nix-shell --run 'python3 evaluate.py'
+nix-shell --run 'python3 evaluate.py <target dir> <pickled model>'
 ```
