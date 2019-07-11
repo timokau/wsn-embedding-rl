@@ -18,8 +18,8 @@ in pkgs.mkShell {
         src = pkgs.fetchFromGitHub {
           owner = "timokau";
           repo = "baselines";
-          sha256 = "0wz90p7sxvhzxj4adbbcwdfirg24xxspalqd22852hc4p7yhad2p";
-          rev = "2257d460c4bbc0eb6a37350a37d2850747d80428";
+          sha256 = "044rx0kdxckn6fasds6c185rx1i1x24j4q0sgbq13y8d7y5aprz7";
+          rev = "68c2c19ccb214baef5965a3bf125f650b7032dd6";
         };
       }))
       graph_nets
