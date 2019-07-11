@@ -138,9 +138,9 @@ def test_manually_verified_sinr():
     # Let's calculate the SINR or signal1.
 
     # source1 sends with 30dBm. There is a distance of 1m to interm1.
-    # According to the log path loss model with a loss exponent of 4
+    # According to the log path loss model with a loss exponent of 2
     # (appropriate for a building), the signal will incur a loss of
-    # 4 * distance_decibel dBm
+    # 2 * distance_decibel dBm
     # Where distance_decibel is the distance in relation to 1m, i.e. 0
     # in this case. That means there is *no loss*, at least according to
     # the model.
@@ -150,27 +150,27 @@ def test_manually_verified_sinr():
     # of sqrt(1^2 + 2^2) ~= 2.24m to interm1. According to the log path
     # loss model:
     # distance_decibel = 10 * lg(2.24) ~= 3.50
-    # => path_loss = 4 * 3.50 ~= 14 dBm
+    # => path_loss = 2 * 3.50 ~= 7 dBm
 
-    # So interm1 receives roughly 16 dBm of noise. Lets assume a base
-    # noise of 15dB. We have to add those two. Care must be taken here
-    # because of the logarithmic scale. Naive addition would result in
-    # multiplication of the actual power in watts. So we need to convert
-    # back to watts first, then add, then convert back:
+    # So interm1 receives roughly 30 - 7 = 23 dBm of noise. Lets assume
+    # a base noise of 15dB. We have to add those two. Care must be taken
+    # here because of the logarithmic scale. Naive addition would result
+    # in multiplication of the actual power in watts. So we need to
+    # convert back to watts first, then add, then convert back:
     # base_noise_milliwatts = 10^(1.5) ~= 31.62 mW
-    # com_noise_milliwatts = 10^(1.6) ~= 39.81 mW
-    # => total_noise = 31.62 + 39.81 = 71.43 mW
-    # The total noise is 71.43 mW, which equals
-    # 10*lg(71.43) ~= 18.54 dB
+    # com_noise_milliwatts = 10^(2.3) ~= 199.53 mW
+    # => total_noise = 31.62 + 199.53 = 231.15 mW
+    # The total noise is 231.15 mW, which equals
+    # 10*lg(231.15) ~= 23.64 dB
     # That is way less than the naively calculated 16 + 15 = 31 dB.
 
     # That means the SINR should be
-    # sinr = 30dBm - 18.54dBm = 11.46dB
+    # sinr = 30dBm - 23.64 = 6.36dB
     # Here the subtraction actually *should* represent a division of the
     # powers.
 
     sinr = embedding.known_sinr(n_source1, n_interm1, 0)
-    assert sinr == approx(11.46, abs=0.1)
+    assert sinr == approx(6.36, abs=0.1)
 
 
 def test_invalidating_earlier_choice_impossible():
