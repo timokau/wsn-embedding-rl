@@ -80,6 +80,8 @@ def main():
         dir=f"logs/{git_label}-{round(time.time())}",
         format_strs=["stdout", "csv", "tensorboard"],
     )
+    learnsteps = 100000
+    train_freq = 1
     learn(
         env,
         deepq_graph_network,
@@ -88,10 +90,10 @@ def main():
         dueling=False,
         prioritized=True,
         print_freq=1,
-        train_freq=1,
+        train_freq=train_freq,
         batch_size=32,
         checkpoint_freq=1000,
-        total_timesteps=100000,
+        total_timesteps=learnsteps * train_freq,
         checkpoint_path=logger.get_dir(),
         after_step_callback=save_episode_result_callback,
     )
