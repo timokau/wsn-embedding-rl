@@ -100,9 +100,14 @@ def log_path_loss(
     # of its strength for each order of magnitude increase in distance.
     loss = loss_exponent * distance_decibel + system_loss
 
-    # The approximation breaks down once the nodes get too close. Loss
-    # can never be negative.
-    return max([loss, 0])
+    # May actually be negative when the distance is <1m. This could be
+    # explained by constructive interference, or could be taken as a
+    # failure of the path loss model. Either way, since only the
+    # resulting signal really matters for our purposes (the path loss
+    # function could easily be adjusted without changes to the model)
+    # and this is what the marvelo instance generation script uses, we
+    # accept that the loss may be negative.
+    return loss
 
 
 def distance(x1: float, y1: float, x2: float, y2: float):
