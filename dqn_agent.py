@@ -3,6 +3,7 @@
 import subprocess
 import time
 import tensorflow as tf
+import numpy as np
 
 # needs this fork of baselines:
 # https://github.com/timokau/baselines/tree/graph_nets-deepq
@@ -66,7 +67,10 @@ def save_episode_result_callback(lcl, _glb):
 
 def main():
     """Run the training"""
-    env = gym_environment.WSNEnvironment()
+    # reproducibility
+    state = np.random.RandomState(42)
+    seedgen = lambda: state.randint(0, 2 ** 32)
+    env = gym_environment.WSNEnvironment(seedgen=seedgen)
     try:
         git_label = (
             subprocess.check_output(["git", "describe", "--always"])

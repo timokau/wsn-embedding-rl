@@ -91,6 +91,7 @@ class WSNEnvironment(gym.Env):
         self,
         node_features=SUPPORTED_NODE_FEATURES,
         edge_features=SUPPORTED_EDGE_FEATURES,
+        seedgen=lambda: np.random.randint(0, 2 ** 32),
     ):
         self._node_features = node_features
         self._edge_features = edge_features
@@ -104,6 +105,7 @@ class WSNEnvironment(gym.Env):
             global_dim=1, node_dim=node_dim, edge_dim=edge_dim
         )
 
+        self.seedgen = seedgen
         # optimize reset
         self._instance_queue = Queue(QUEUE_SIZE)
         self._pool = None
@@ -236,7 +238,7 @@ class WSNEnvironment(gym.Env):
         # generated elements to prevent under-representation of long
         # running ones.
         while not self._instance_queue.full():
-            rand = np.random.RandomState(np.random.randint(0, 2 ** 32))
+            rand = np.random.RandomState(self.seedgen())
             job = self._pool.map_async(generator.validated_random, [rand])
             self._instance_queue.put_nowait(job)
 
