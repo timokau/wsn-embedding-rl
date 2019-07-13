@@ -13,7 +13,7 @@ from graph_nets.graphs import GraphsTuple
 
 import generator
 
-QUEUE_SIZE = 128
+QUEUE_SIZE = 16
 POSSIBLE_IDX = 0
 TIMESLOT_IDX = 1
 RELAY_IDX = 2
