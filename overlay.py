@@ -84,8 +84,8 @@ class OverlayNetwork:
         self.graph.add_edge(source, sink)
 
     def _block_to_verbose_str(self, block):
-        requirement = self.requirement(block)
-        datarate = self.datarate(block)
+        requirement = round(self.requirement(block), 1)
+        datarate = round(self.datarate(block), 1)
         return (
             f'(name="{block}", requirement={requirement}, datarate={datarate})'
         )

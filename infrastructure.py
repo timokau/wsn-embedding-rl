@@ -233,9 +233,10 @@ class InfrastructureNetwork:
 
     def _node_to_verbose_str(self, node):
         pos = self.graph.nodes[node]["pos"]
-        pos = f"({pos[0]}, {pos[1]})"
-        tp = self.graph.nodes[node]["transmit_power_dbm"]
-        return f'(name="{node}", pos={pos}, transmit_power_dbm={tp})'
+        pos = f"({round(pos[0], 1)}, {round(pos[1], 1)})"
+        tp = round(self.graph.nodes[node]["transmit_power_dbm"], 1)
+        cap = round(self.capacity(node), 1)
+        return f'(name="{node}", pos={pos}, power={tp}dBm, capacity={cap})'
 
 
 def draw_infra(
