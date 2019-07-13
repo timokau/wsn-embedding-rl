@@ -91,6 +91,7 @@ class WSNEnvironment(gym.Env):
         self,
         node_features=SUPPORTED_NODE_FEATURES,
         edge_features=SUPPORTED_EDGE_FEATURES,
+        early_exit_factor=np.infty,
         seedgen=lambda: np.random.randint(0, 2 ** 32),
     ):
         self._node_features = node_features
@@ -106,6 +107,8 @@ class WSNEnvironment(gym.Env):
         )
 
         self.seedgen = seedgen
+        self.early_exit_factor = early_exit_factor
+
         # optimize reset
         self._instance_queue = Queue(QUEUE_SIZE)
         self._pool = None
@@ -205,8 +208,22 @@ class WSNEnvironment(gym.Env):
         assert self.env.take_action(source, sink, timeslot)
 
         reward = ts_before - self.env.used_timeslots
+        self.total_reward += reward
         done = self.env.is_complete()
 
+        links = len(self.env.overlay.links())
+        nodes = len(self.env.infra.nodes())
+        if not done and len(self.env.possibilities()) == 0:
+            # Avoid getting stuck on difficult/impossible problems,
+            # especially in the beginning. It is important not to do
+            # this too early, since otherwise the agent could learn to
+            # strategically fail. It should be possible to solve every
+            # solvable problem in (node*links) timesteps though, so
+            # anything bigger than that should be fine.
+            min_reward = -self.early_exit_factor * nodes * links
+            if self.total_reward < min_reward:
+                print("Early exit")
+                done = True
         if not done and len(self.env.possibilities()) == 0:
             # Failed to solve the problem, retry without ending the
             # episode (thus penalizing the failed attempt).
@@ -256,6 +273,7 @@ class WSNEnvironment(gym.Env):
             self.baseline = baseline
         self.env = embedding
         self.restarts = 0
+        self.total_reward = 0
         self.last_translation_dict = dict()
         self._last_ob = self._get_observation()
         return self._last_ob
