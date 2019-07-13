@@ -1,7 +1,7 @@
 """Train a graph_nets DQN agent on the WSN environment"""
 
 import subprocess
-import time
+import datetime
 import tensorflow as tf
 import numpy as np
 
@@ -79,9 +79,10 @@ def main():
         )
     except subprocess.CalledProcessError:
         git_label = "nogit"
+    time_label = datetime.datetime.now().isoformat()
 
     logger.configure(
-        dir=f"logs/{git_label}-{round(time.time())}",
+        dir=f"logs/{time_label}-{git_label}",
         format_strs=["stdout", "csv", "tensorboard"],
     )
     learnsteps = 100000
