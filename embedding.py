@@ -587,4 +587,7 @@ class PartialEmbedding:
 
     def construct_link_mappings(self):
         """Returns a mapping from links to paths"""
-        return self.link_embeddings
+        result = dict()
+        for link in self.finished_embeddings:
+            result[link] = self.link_embeddings[link]
+        return result
