@@ -123,6 +123,12 @@ class PartialEmbedding:
         """Shortcut to get all ENodes of the underlying graph"""
         return self.graph.nodes()
 
+    def remaining_capacity(self, node):
+        """Returns the capacity remaining in a node"""
+        available = self.infra.capacity(node)
+        used = self._capacity_used[node]
+        return available - used
+
     def _add_possible_intermediate_embeddings(self):
         for block in self.overlay.intermediates:
             for node in self.infra.graph.nodes():
@@ -365,12 +371,8 @@ class PartialEmbedding:
     def _node_can_carry(self, node, block):
         """Weather or not a node can support the computation for a block
         in a given timeslot"""
-        if block is None:
-            return True
-        used = self._capacity_used[node]
-        needed = self.overlay.requirement(block)
-        available = self.infra.capacity(node)
-        return used + needed <= available
+        needed = 0 if block is None else self.overlay.requirement(block)
+        return needed <= self.remaining_capacity(node)
 
     def _node_sending_other_data_in_timeslot(self, enode, timeslot):
         # the same embedding can send multiple times within a timeslot
