@@ -73,7 +73,7 @@ class GraphSpace(gym.spaces.Space):
 
 
 SUPPORTED_NODE_FEATURES = frozenset(
-    ("posx", "posy", "relay", "sink")
+    ("posx", "posy", "relay", "sink", "remaining_capacity", "requirement")
 )
 SUPPORTED_EDGE_FEATURES = frozenset(
     ("timeslot", "chosen", "capacity", "additional_timeslot")
@@ -138,6 +138,11 @@ class WSNEnvironment(gym.Env):
                 features += [float(enode.relay)]
             if "sink" in self._node_features:
                 features += [float(is_sink)]
+            if "remaining_capacity" in self._node_features:
+                features += [embedding.remaining_capacity(enode.node)]
+            if "requirement" in self._node_features:
+                features += [embedding.overlay.requirement(enode.block)]
+
             assert features[RELAY_IDX] == float(enode.relay)
             input_graph.add_node(i, features=np.array(features))
 
