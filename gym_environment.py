@@ -72,6 +72,14 @@ class GraphSpace(gym.spaces.Space):
         return placeholders
 
 
+SUPPORTED_NODE_FEATURES = frozenset(
+    ("posx", "posy", "relay", "sink")
+)
+SUPPORTED_EDGE_FEATURES = frozenset(
+    ("timeslot", "chosen", "capacity", "additional_timeslot")
+)
+
+
 class WSNEnvironment(gym.Env):
     """Wireless Sensor Network Environment"""
 
@@ -81,34 +89,17 @@ class WSNEnvironment(gym.Env):
 
     def __init__(
         self,
-        node_features=("pos", "relay", "sink"),
-        edge_features=(
-            "timeslot",
-            "chosen",
-            "capacity",
-            "additional_timeslot",
-        ),
+        node_features=SUPPORTED_NODE_FEATURES,
+        edge_features=SUPPORTED_EDGE_FEATURES,
     ):
-        self._node_featuers = node_features
-        node_dim = 0
-        if "pos" in node_features:
-            node_dim += 2
-        if "relay" in node_features:
-            node_dim += 1
-        if "sink" in node_features:
-            node_dim += 1
-
+        self._node_features = node_features
         self._edge_features = edge_features
-        edge_dim = 1  # always has to include "possible" bit
-        if "timeslot" in edge_features:
-            edge_dim += 1
-        if "chosen" in edge_features:
-            edge_dim += 1
-        if "capacity" in edge_features:
-            edge_dim += 1
-        if "additional_timeslot" in edge_features:
-            edge_dim += 1
+        assert set(self._node_features).issubset(SUPPORTED_NODE_FEATURES)
+        assert set(self._edge_features).issubset(SUPPORTED_EDGE_FEATURES)
 
+        node_dim = len(self._node_features)
+        # always has to include "possible" bit
+        edge_dim = 1 + len(self._edge_features)
         self.observation_space = GraphSpace(
             global_dim=1, node_dim=node_dim, edge_dim=edge_dim
         )
@@ -118,7 +109,11 @@ class WSNEnvironment(gym.Env):
         self._pool = None
 
     def _get_observation(self):
+        # This is a complex function, but I see no use in splitting it
+        # up.
         # pylint: disable=too-many-locals
+        # pylint: disable=too-many-statements
+        # pylint: disable=too-many-branches
         # build graphs from scratch, since we need to change the node
         # indexing (graph_nets can only deal with integer indexed nodes)
         input_graph = nx.MultiDiGraph()
@@ -135,13 +130,14 @@ class WSNEnvironment(gym.Env):
             is_sink = enode.node == self.env.infra.sink
 
             features = []
-            if "pos" in self._node_featuers:
-                features += [inode["pos"][0], inode["pos"][1]]
-            if "relay" in self._node_featuers:
+            if "posx" in self._node_features:
+                features += [inode["pos"][0]]
+            if "posy" in self._node_features:
+                features += [inode["pos"][1]]
+            if "relay" in self._node_features:
                 features += [float(enode.relay)]
-            if "sink" in self._node_featuers:
+            if "sink" in self._node_features:
                 features += [float(is_sink)]
-
             assert features[RELAY_IDX] == float(enode.relay)
             input_graph.add_node(i, features=np.array(features))
 
