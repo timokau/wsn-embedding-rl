@@ -211,8 +211,11 @@ class WSNEnvironment(gym.Env):
         self.total_reward += reward
         done = self.env.is_complete()
 
+        blocks = len(self.env.overlay.blocks())
         links = len(self.env.overlay.links())
         nodes = len(self.env.infra.nodes())
+        bl = self.baseline
+
         if not done and len(self.env.possibilities()) == 0:
             # Avoid getting stuck on difficult/impossible problems,
             # especially in the beginning. It is important not to do
@@ -227,6 +230,17 @@ class WSNEnvironment(gym.Env):
         if not done and len(self.env.possibilities()) == 0:
             # Failed to solve the problem, retry without ending the
             # episode (thus penalizing the failed attempt).
+            embedded_links = len(self.env.finished_embeddings)
+            ts_used = self.env.used_timeslots
+
+            if bl is not None:
+                print(
+                    "RESET; "
+                    f"n{nodes}b{blocks}, "
+                    f"{embedded_links}/{links} done "
+                    f"in {ts_used}ts ({bl})"
+                )
+
             self.env = self.env.reset()
             self.restarts += 1
             # make it easier for the network to figure out that resets
