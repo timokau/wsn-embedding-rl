@@ -2,8 +2,8 @@
 
 import subprocess
 import datetime
+
 import tensorflow as tf
-import numpy as np
 
 # needs this fork of baselines:
 # https://github.com/timokau/baselines/tree/graph_nets-deepq
@@ -14,9 +14,9 @@ from graph_nets.demos.models import EncodeProcessDecode
 from networkx.drawing.nx_pydot import write_dot
 
 import gym_environment
+from generator import Generator, ParallelGenerator
 from draw_embedding import succinct_representation
 from tf_util import ragged_boolean_mask
-import generator
 
 NUM_PROCESSING_STEPS = 5
 
@@ -79,31 +79,26 @@ def _git_describe():
 
 def run_training(
     # pylint: disable=too-many-arguments
-    learnsteps=100000,
-    train_freq=1,
-    batch_size=32,
-    early_exit_factor=np.infty,
-    seedgen=None,  # defaults to reproducible
-    experiment_name="default",
-    prioritized=True,
-    node_feat_whitelist=gym_environment.SUPPORTED_NODE_FEATURES,
-    node_feat_blacklist=frozenset(),
-    edge_feat_whitelist=gym_environment.SUPPORTED_EDGE_FEATURES,
-    edge_feat_blacklist=frozenset(),
+    learnsteps,
+    train_freq,
+    batch_size,
+    early_exit_factor,
+    seedgen,
+    experiment_name,
+    prioritized,
+    node_feat_whitelist,
+    node_feat_blacklist,
+    edge_feat_whitelist,
+    edge_feat_blacklist,
 ):
     """Trains the agent with the given hyperparameters"""
-    if seedgen is None:
-        # reproducibility
-        state = np.random.RandomState(42)
-        seedgen = lambda: state.randint(0, 2 ** 32)
-
     assert frozenset(node_feat_blacklist).issubset(node_feat_whitelist)
     assert frozenset(edge_feat_blacklist).issubset(edge_feat_whitelist)
 
     node_feat = frozenset(node_feat_whitelist).difference(node_feat_blacklist)
     edge_feat = frozenset(edge_feat_whitelist).difference(edge_feat_blacklist)
 
-    parallel_gen = generator.ParallelGenerator(generator.Generator(), seedgen)
+    parallel_gen = ParallelGenerator(Generator(), seedgen)
     env = gym_environment.WSNEnvironment(
         node_features=node_feat,
         edge_features=edge_feat,
@@ -137,4 +132,6 @@ def run_training(
 
 
 if __name__ == "__main__":
-    run_training()
+    from hyperparameters import DEFAULT
+
+    run_training(**DEFAULT)

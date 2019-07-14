@@ -1,4 +1,4 @@
 """Run training with default options"""
-from common import run_training
+from common import run_training, DEFAULT
 
-run_training()
+run_training(**DEFAULT)
