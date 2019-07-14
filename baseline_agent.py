@@ -1,13 +1,12 @@
 """Simple semi-greedy baseline agent"""
 from math import inf
-import random
 import time
 import numpy as np
 import gym_environment
 import generator
 
 
-def act(graph_tuple, randomness=0):
+def act(graph_tuple, randomness, rand):
     """Take a semi-greedy action"""
     min_ts_actions = None
     possible_actions = []
@@ -30,8 +29,8 @@ def act(graph_tuple, randomness=0):
             i += 1
 
     # break out of reset loops by acting random every once in a while
-    if random.random() < randomness:
-        return random.choice(range(i))
+    if rand.rand() < randomness:
+        return rand.choice(range(i))
 
     preferred_actions = min_ts_actions
 
@@ -46,11 +45,11 @@ def act(graph_tuple, randomness=0):
     if len(not_relay_actions) > 0:
         preferred_actions = not_relay_actions
 
-    choice = random.choice(preferred_actions)
+    choice = rand.choice(preferred_actions)
     return choice
 
 
-def play_episode(embedding, max_restarts=None):
+def play_episode(embedding, max_restarts, rand):
     """Play an entire episode and report the reward"""
     env = gym_environment.WSNEnvironment(
         problem_generator=lambda: (embedding, None)
@@ -62,7 +61,7 @@ def play_episode(embedding, max_restarts=None):
     while max_restarts is None or env.restarts < max_restarts:
         # gradually increase randomness up to 100%
         randomness = env.restarts / (max_restarts - 1)
-        action = act(obs, randomness=randomness)
+        action = act(obs, randomness=randomness, rand=rand)
         new_obs, rew, done, _ = env.step(action)
         total_reward += rew
         obs = new_obs
@@ -75,10 +74,11 @@ def evaluate(episodes=100):
     """Evaluate over many episodes"""
     rewards = []
     times = []
+    rand = np.random.RandomState(42)
     for _ in range(episodes):
         before = time.time()
-        emb = generator.Generator().random_embedding(rand=np.random)
-        (reward, _timeslots) = play_episode(emb, 100)
+        emb = generator.Generator().random_embedding(rand)
+        (reward, _timeslots) = play_episode(emb, max_restarts=10, rand=rand)
         if reward is not None:
             rewards.append(reward)
             print(rewards[-1])

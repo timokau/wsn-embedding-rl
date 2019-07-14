@@ -88,7 +88,7 @@ class Generator:
             before = time.time()
             emb = self.random_embedding(rand)
             (reward, baseline) = baseline_agent.play_episode(
-                emb, max_restarts=10
+                emb, max_restarts=10, rand=rand
             )
             elapsed = round(time.time() - before, 1)
             nodes = len(emb.infra.nodes())
