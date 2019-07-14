@@ -28,7 +28,7 @@ DEFAULT = {
     "learnsteps": 100000,
     "train_freq": 1,
     "batch_size": 32,
-    "early_exit_factor": np.infty,
+    "early_exit_factor": 1.5,
     "seedgen": lambda: STATE.randint(0, 2 ** 32),
     "experiment_name": "default",
     "prioritized": True,
