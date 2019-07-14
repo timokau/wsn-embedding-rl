@@ -10,7 +10,6 @@ from graph_nets.graphs import GraphsTuple
 
 POSSIBLE_IDX = 0
 TIMESLOT_IDX = 1
-RELAY_IDX = 2
 
 
 class GraphSpace(gym.spaces.Space):
@@ -140,7 +139,6 @@ class WSNEnvironment(gym.Env):
             if "requirement" in self._node_features:
                 features += [embedding.overlay.requirement(enode.block)]
 
-            assert features[RELAY_IDX] == float(enode.relay)
             input_graph.add_node(i, features=np.array(features))
 
         # add the edges

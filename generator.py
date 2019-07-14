@@ -87,7 +87,7 @@ class Generator:
         while True:
             before = time.time()
             emb = self.random_embedding(rand)
-            (reward, baseline) = baseline_agent.play_episode(
+            baseline = baseline_agent.play_episode(
                 emb, max_restarts=10, rand=rand
             )
             elapsed = round(time.time() - before, 1)
@@ -98,13 +98,13 @@ class Generator:
                 if elapsed > 60:
                     # pylint: disable=line-too-long
                     print(
-                        f"Generated ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links, {reward})"
+                        f"Generated ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links )"
                     )
                 return (emb.reset(), baseline)
             if elapsed > 60:
                 # pylint: disable=line-too-long
                 print(
-                    f"Failed    ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links, {reward})"
+                    f"Failed    ({elapsed}s, {nodes} nodes, {blocks} blocks, {links} links)"
                 )
 
     def random_infrastructure(self, num_sources: int, rand):

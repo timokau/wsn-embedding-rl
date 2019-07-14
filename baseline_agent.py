@@ -2,95 +2,79 @@
 from math import inf
 import time
 import numpy as np
-import gym_environment
 import generator
+from embedding import PartialEmbedding
 
 
-def act(graph_tuple, randomness, rand):
+def act(emb: PartialEmbedding, randomness, rand):
     """Take a semi-greedy action"""
     min_ts_actions = None
-    possible_actions = []
-    min_ts = inf
-    i = 0
-    for (u, v, d) in zip(
-        graph_tuple.senders, graph_tuple.receivers, graph_tuple.edges
-    ):
-        possible = d[gym_environment.POSSIBLE_IDX] == 1
-        if not possible:
-            continue
-        else:
-            timeslot = int(d[gym_environment.TIMESLOT_IDX])
-            possible_actions.append((u, v, d))
-            if timeslot == min_ts:
-                min_ts_actions.append(i)
-            elif timeslot < min_ts:
-                min_ts = timeslot
-                min_ts_actions = [i]
-            i += 1
+    possible_actions = emb.possibilities()
 
-    # break out of reset loops by acting random every once in a while
-    if rand.rand() < randomness:
-        return rand.choice(range(i))
+    min_ts = inf
+    for (u, v, t) in possible_actions:
+        if t < min_ts:
+            min_ts = t
+            min_ts_actions = []
+        if t == min_ts:
+            min_ts_actions.append((u, v, t))
 
     preferred_actions = min_ts_actions
 
     not_relay_actions = []
-    for action_idx in preferred_actions:
-        (u, v, d) = possible_actions[action_idx]
-        receiver = graph_tuple.nodes[v]
-        receiver_is_relay = bool(receiver[gym_environment.RELAY_IDX])
-        if not receiver_is_relay:
-            not_relay_actions.append(action_idx)
+    for (u, v, t) in preferred_actions:
+        if not v.relay:
+            not_relay_actions.append((u, v, t))
 
     if len(not_relay_actions) > 0:
         preferred_actions = not_relay_actions
 
-    choice = rand.choice(preferred_actions)
-    return choice
+    # break out of reset loops by acting random every once in a while
+    if rand.rand() < randomness:
+        preferred_actions = possible_actions
+    choice_idx = rand.choice(range(len(preferred_actions)))
+    return preferred_actions[choice_idx]
 
 
 def play_episode(embedding, max_restarts, rand):
     """Play an entire episode and report the reward"""
-    env = gym_environment.WSNEnvironment(
-        problem_generator=lambda: (embedding, None)
-    )
-    obs = env.reset()
-    total_reward = 0
-    if len(embedding.possibilities()) == 0:
-        return (None, None)
-    while max_restarts is None or env.restarts < max_restarts:
+    restarts = 0
+    while max_restarts is None or restarts < max_restarts:
+        if len(embedding.possibilities()) == 0:
+            if embedding.is_complete():
+                return embedding.used_timeslots
+            restarts += 1
+            embedding = embedding.reset()
+            continue
+
         # gradually increase randomness up to 100%
-        randomness = env.restarts / (max_restarts - 1)
-        action = act(obs, randomness=randomness, rand=rand)
-        new_obs, rew, done, _ = env.step(action)
-        total_reward += rew
-        obs = new_obs
-        if done:
-            return (total_reward, env.env.used_timeslots)
-    return (None, None)
+        randomness = restarts / (max_restarts - 1)
+        action = act(embedding, randomness=randomness, rand=rand)
+        embedding.take_action(*action)
+    return None
 
 
 def evaluate(episodes=100):
     """Evaluate over many episodes"""
-    rewards = []
+    results = []
     times = []
     rand = np.random.RandomState(42)
     for _ in range(episodes):
         before = time.time()
         emb = generator.Generator().random_embedding(rand)
-        (reward, _timeslots) = play_episode(emb, max_restarts=10, rand=rand)
-        if reward is not None:
-            rewards.append(reward)
-            print(rewards[-1])
+        timeslots = play_episode(emb, max_restarts=10, rand=rand)
+        if timeslots is not None:
+            results.append(timeslots)
+            print(results[-1])
         times.append(time.time() - before)
-    return rewards, times
+    return results, times
 
 
 def main():
     """Run the experiment"""
-    rewards, times = evaluate(100)
+    results, times = evaluate(100)
     print("=====")
-    print(f"Mean reward: {np.mean(rewards)}")
+    print(f"Mean result: {np.mean(results)}")
     print(f"Mean time: {np.mean(times)}")
 
 
