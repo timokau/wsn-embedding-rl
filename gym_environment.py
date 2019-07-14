@@ -69,7 +69,13 @@ SUPPORTED_NODE_FEATURES = frozenset(
     ("posx", "posy", "relay", "sink", "remaining_capacity", "requirement")
 )
 SUPPORTED_EDGE_FEATURES = frozenset(
-    ("timeslot", "chosen", "capacity", "additional_timeslot")
+    (
+        "timeslot",
+        "chosen",
+        "capacity",
+        "datarate_requirement",
+        "additional_timeslot",
+    )
 )
 
 
@@ -147,6 +153,7 @@ class WSNEnvironment(gym.Env):
             chosen = d["chosen"]
             timeslot = d["timeslot"]
             capacity = embedding.known_capacity(u.node, v.node, timeslot)
+            datarate_requirement = embedding.overlay.datarate(u.block)
             possible = not chosen and source_chosen
             features = [float(possible)]
             additional_timeslot = timeslot >= self.env.used_timeslots
@@ -159,6 +166,8 @@ class WSNEnvironment(gym.Env):
                 features += [capacity]
             if "additional_timeslot" in self._edge_features:
                 features += [float(additional_timeslot)]
+            if "datarate_requirement" in self._edge_features:
+                features += [datarate_requirement]
 
             assert features[POSSIBLE_IDX] == float(possible)
             assert features[TIMESLOT_IDX] == float(timeslot)
