@@ -330,8 +330,8 @@ class PartialEmbedding:
         return capacity >= thresh
 
     def _node_already_visited_on_path(self, source, target):
-        # self loops within a block are okay
-        if not source.relay and not target.relay:
+        # only valid for relays; finishing a links is always okay
+        if not target.relay:
             return False
 
         link = (source.acting_as, target.target)
