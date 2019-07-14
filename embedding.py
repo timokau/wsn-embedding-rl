@@ -572,6 +572,13 @@ class PartialEmbedding:
                 if deg != 1:
                     return (False, f"Chosen relay {enode} has indeg {deg}")
 
+        last_ts = self.used_timeslots
+        poss = self.possibilities()
+        for (u, v, t) in poss:
+            # if an action is possible in any timeslot, it should also
+            # be possible in the last timeslot
+            assert (u, v, last_ts) in poss
+
         return (True, None)
 
     def _remove_unnecessary_nodes(self):
