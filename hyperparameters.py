@@ -37,4 +37,5 @@ DEFAULT = {
     "edge_feat_whitelist": SUPPORTED_EDGE_FEATURES,
     "edge_feat_blacklist": frozenset(),
     "generator_args": GENERATOR_DEFAULTS,
+    "exploration_fraction": 0.1,
 }
