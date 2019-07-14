@@ -1093,3 +1093,35 @@ def test_connection_within_node_always_possible():
     assert embedding.take_action(eso, ein, 0)
     # even though nsi is already receiving in ts 0
     assert embedding.take_action(ein, esi, 0)
+
+
+def test_self_loop_does_not_interfere():
+    """Tests self-loop does not interfere with other connections"""
+    infra = InfrastructureNetwork()
+
+    nso1 = infra.add_source(name="nso1", pos=(0, 0), transmit_power_dbm=30)
+    nso2 = infra.add_source(name="nso2", pos=(0, 1), transmit_power_dbm=30)
+    nsi = infra.set_sink(name="nsi", pos=(2, 0), transmit_power_dbm=30)
+
+    overlay = OverlayNetwork()
+    bso1 = overlay.add_source(name="bso1", datarate=5, requirement=0)
+    bso2 = overlay.add_source(name="bso2", datarate=5, requirement=0)
+    bin_ = overlay.add_intermediate(name="bin", datarate=5, requirement=0)
+    bsi = overlay.set_sink(name="bsi", datarate=5, requirement=0)
+    overlay.add_link(bso1, bin_)
+    overlay.add_link(bin_, bsi)
+    overlay.add_link(bso2, bsi)
+
+    embedding = PartialEmbedding(
+        infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)]
+    )
+
+    eso1 = ENode(bso1, nso1)
+    eso2 = ENode(bso2, nso2)
+    ein = ENode(bin_, nsi)
+    esi = ENode(bsi, nsi)
+    assert embedding.take_action(eso1, ein, 0)
+    # self loop at node esi, ts 1
+    assert embedding.take_action(ein, esi, 1)
+    # can still send to that node at the same ts
+    assert embedding.take_action(eso2, esi, 1)

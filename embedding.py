@@ -252,7 +252,8 @@ class PartialEmbedding:
         # pylint: disable=too-many-branches,too-many-statements
         assert self.graph.node[source]["chosen"]
         self.graph.edges[(source, target, timeslot)]["chosen"] = True
-        self._nodes_sending_in[timeslot].add(source.node)
+        if source.node != target.node:
+            self._nodes_sending_in[timeslot].add(source.node)
 
         link = (source.acting_as, target.target)
         # if this starts a link embedding
