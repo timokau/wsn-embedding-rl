@@ -1069,3 +1069,27 @@ def test_half_duplex():
     print(embedding.possibilities())
     assert embedding.take_action(eso, ein, 0)
     assert not embedding.take_action(ein, esi, 0)
+
+
+def test_connection_within_node_always_possible():
+    """Tests that a node cannot send and receive at the same time"""
+    infra = InfrastructureNetwork()
+
+    nso = infra.add_source(name="nso", pos=(0, 0), transmit_power_dbm=30)
+    nsi = infra.set_sink(name="nsi", pos=(2, 0), transmit_power_dbm=30)
+
+    overlay = OverlayNetwork()
+    bso = overlay.add_source(name="bso", datarate=0, requirement=0)
+    bin_ = overlay.add_intermediate(name="bin", datarate=0, requirement=0)
+    bsi = overlay.set_sink(name="bsi", datarate=0, requirement=0)
+    overlay.add_link(bso, bin_)
+    overlay.add_link(bin_, bsi)
+
+    embedding = PartialEmbedding(infra, overlay, source_mapping=[(bso, nso)])
+
+    eso = ENode(bso, nso)
+    ein = ENode(bin_, nsi)
+    esi = ENode(bsi, nsi)
+    assert embedding.take_action(eso, ein, 0)
+    # even though nsi is already receiving in ts 0
+    assert embedding.take_action(ein, esi, 0)

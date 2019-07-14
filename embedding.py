@@ -428,6 +428,10 @@ class PartialEmbedding:
 
     def _why_infeasible_in_timeslot(self, source, target, timeslot):
         """Returns why an edge is or is not feasible in a timeslot"""
+        # loops are always valid
+        if source.node == target.node:
+            return (False, "")
+
         if self._node_sending_other_data_in_timeslot(source, timeslot):
             return (True, "Node already sending other data in timeslot")
 
