@@ -9,7 +9,7 @@ from infrastructure import draw_infra
 from overlay import draw_overlay
 from embedding import PartialEmbedding
 from draw_embedding import draw_embedding
-from generator import Generator, get_random_action
+from generator import DefaultGenerator, get_random_action
 
 
 COLORS = {
@@ -119,7 +119,7 @@ class Visualization:
 
 
 def _main():
-    embedding = Generator().random_embedding(rand=np.random)
+    embedding = DefaultGenerator().random_embedding(rand=np.random)
     Visualization(embedding)
     plt.show()
 

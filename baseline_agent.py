@@ -61,7 +61,7 @@ def evaluate(episodes=100):
     rand = np.random.RandomState(42)
     for _ in range(episodes):
         before = time.time()
-        emb = generator.Generator().random_embedding(rand)
+        emb = generator.DefaultGenerator().random_embedding(rand)
         timeslots = play_episode(emb, max_restarts=10, rand=rand)
         if timeslots is not None:
             results.append(timeslots)

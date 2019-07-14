@@ -90,6 +90,7 @@ def run_training(
     node_feat_blacklist,
     edge_feat_whitelist,
     edge_feat_blacklist,
+    generator_args,
 ):
     """Trains the agent with the given hyperparameters"""
     assert frozenset(node_feat_blacklist).issubset(node_feat_whitelist)
@@ -98,7 +99,7 @@ def run_training(
     node_feat = frozenset(node_feat_whitelist).difference(node_feat_blacklist)
     edge_feat = frozenset(edge_feat_whitelist).difference(edge_feat_blacklist)
 
-    parallel_gen = ParallelGenerator(Generator(), seedgen)
+    parallel_gen = ParallelGenerator(Generator(**generator_args), seedgen)
     env = gym_environment.WSNEnvironment(
         node_features=node_feat,
         edge_features=edge_feat,

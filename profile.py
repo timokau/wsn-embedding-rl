@@ -4,7 +4,7 @@ import time
 import numpy as np
 from pycallgraph import PyCallGraph, Config, GlobbingFilter
 from pycallgraph.output import GraphvizOutput
-from generator import Generator, get_random_action
+from generator import DefaultGenerator, get_random_action
 
 
 def main(rand, pcg):
@@ -12,7 +12,7 @@ def main(rand, pcg):
     while True:
         action_list = []
         before = time.time()
-        embedding = Generator().random_embedding(rand)
+        embedding = DefaultGenerator().random_embedding(rand)
         while True:
             action = get_random_action(embedding, rand=rand)
             if action is None:

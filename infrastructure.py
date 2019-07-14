@@ -266,9 +266,9 @@ def draw_infra(
 
 
 if __name__ == "__main__":
-    from generator import Generator
+    from generator import DefaultGenerator
 
-    draw_infra(Generator().random_infrastructure(2, rand=np.random))
+    draw_infra(DefaultGenerator().random_infrastructure(2, rand=np.random))
     from matplotlib import pyplot as plt
 
     plt.show()

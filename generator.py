@@ -1,7 +1,6 @@
 """Generation of new problem instances"""
 
 import time
-import math
 
 # fork of multiprocessing that uses dill for pickling (usage of lambdas)
 from queue import Queue
@@ -16,6 +15,7 @@ from overlay import OverlayNetwork
 from infrastructure import InfrastructureNetwork
 from embedding import PartialEmbedding
 import baseline_agent
+from hyperparameters import GENERATOR_DEFAULTS
 
 
 def truncnorm(rand, mean=0, sd=1, low=-np.infty, upp=np.infty):
@@ -36,19 +36,16 @@ class Generator:
     def __init__(
         # pylint: disable=too-many-arguments
         self,
-        interm_nodes_dist=lambda r: round(truncnorm(r, mean=5, sd=3, low=0)),
-        pos_dist=lambda r: r.uniform(low=(0, 0), high=(25, 25)),
-        capacity_dist=lambda r: truncnorm(r, mean=10, sd=5, low=0),
-        power_dist=lambda r: r.normal(30, 2),
-        interm_blocks_dist=lambda r: round(truncnorm(r, mean=3, sd=2, low=0)),
-        pairwise_connection=lambda r: r.rand() < 0.01,
-        block_weight_dist=lambda r: truncnorm(r, mean=5, low=0, sd=2),
-        # mean equivalent to a linear SINRth of 20, which is what marvelo uses
-        requirement_dist=lambda r: truncnorm(
-            r, mean=math.log(1 + 20, 2), low=0, sd=1
-        ),
-        num_sources_dist=lambda r: round(truncnorm(r, mean=2, sd=1, low=1)),
-        connection_choice=lambda r, a: r.choice(a),
+        interm_nodes_dist,
+        pos_dist,
+        capacity_dist,
+        power_dist,
+        interm_blocks_dist,
+        pairwise_connection,
+        block_weight_dist,
+        requirement_dist,
+        num_sources_dist,
+        connection_choice,
     ):
         self.interm_nodes_dist = interm_nodes_dist
         self.pos_dist = pos_dist
@@ -202,6 +199,13 @@ class Generator:
         return overlay
 
 
+class DefaultGenerator(Generator):
+    """For quick examples"""
+
+    def __init__(self):
+        super(DefaultGenerator, self).__init__(**GENERATOR_DEFAULTS)
+
+
 class ParallelGenerator:
     """Generator that uses multiprocessing to amortize generation"""
 
@@ -268,4 +272,4 @@ def get_random_action(embedding: PartialEmbedding, rand):
 
 
 if __name__ == "__main__":
-    print(Generator().validated_random(rand=np.random))
+    print(DefaultGenerator().validated_random(rand=np.random))
