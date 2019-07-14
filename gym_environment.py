@@ -74,9 +74,17 @@ SUPPORTED_EDGE_FEATURES = frozenset(
         "chosen",
         "capacity",
         "datarate_requirement",
+        "datarate_fraction",
         "additional_timeslot",
     )
 )
+
+
+def frac(a, b):
+    """Regular fraction, but result is 0 if a = b = 0"""
+    if a == 0 and b == 0:
+        return 0
+    return a / b
 
 
 class WSNEnvironment(gym.Env):
@@ -168,6 +176,8 @@ class WSNEnvironment(gym.Env):
                 features += [float(additional_timeslot)]
             if "datarate_requirement" in self._edge_features:
                 features += [datarate_requirement]
+            if "datarate_fraction" in self._edge_features:
+                features += [frac(datarate_requirement, capacity)]
 
             assert features[POSSIBLE_IDX] == float(possible)
             assert features[TIMESLOT_IDX] == float(timeslot)
