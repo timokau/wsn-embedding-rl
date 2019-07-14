@@ -85,6 +85,7 @@ SUPPORTED_EDGE_FEATURES = frozenset(
         "datarate_requirement",
         "datarate_fraction",
         "additional_timeslot",
+        "is_broadcast",
     )
 )
 
@@ -205,6 +206,12 @@ class WSNEnvironment(gym.Env):
                 features += [datarate_requirement]
             if "datarate_fraction" in self._edge_features:
                 features += [frac(datarate_requirement, capacity)]
+            if "is_broadcast" in self._edge_features:
+                is_broadcast = False
+                for (source, target) in embedding.taken_edges_in[timeslot]:
+                    if source.block == u.block and source.node == u.node:
+                        is_broadcast = True
+                features += [float(is_broadcast)]
 
             assert features[POSSIBLE_IDX] == float(possible)
             assert features[TIMESLOT_IDX] == float(timeslot)

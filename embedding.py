@@ -90,7 +90,7 @@ class PartialEmbedding:
         self._by_node = defaultdict(set)
         self._taken_edges = dict()
         # per-timeslot, more scalable
-        self._taken_edges_in = defaultdict(set)
+        self.taken_edges_in = defaultdict(set)
         self._nodes_sending_in = defaultdict(set)
         self.taken_embeddings = dict()
         self._num_outlinks_embedded = defaultdict(int)
@@ -378,7 +378,7 @@ class PartialEmbedding:
         # the same embedding can send multiple times within a timeslot
         # (broadcasting results), but others cannot (which would send
         # other data)
-        for (u, v) in self._taken_edges_in[timeslot]:
+        for (u, v) in self.taken_edges_in[timeslot]:
             # loops within a node are okay
             if (
                 u.node == enode.node
@@ -391,7 +391,7 @@ class PartialEmbedding:
     def _node_receiving_data_in_timeslot(self, node, timeslot):
         """We work on the half-duplex assumption: sending and receiving
         is mutually exclusive."""
-        for (u, v) in self._taken_edges_in[timeslot]:
+        for (u, v) in self.taken_edges_in[timeslot]:
             # loops within a node are okay
             if v.node == node and u.node != v.node:
                 return True
@@ -559,7 +559,7 @@ class PartialEmbedding:
         assert self._connection_feasible(source, target, timeslot)
 
         self._taken_edges[(source, target)] = timeslot
-        self._taken_edges_in[timeslot].add((source, target))
+        self.taken_edges_in[timeslot].add((source, target))
 
         self.choose_embedding(target)
         self.choose_edge(source, target, timeslot)
