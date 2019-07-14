@@ -26,8 +26,10 @@ def load_agent_from_file(name):
 
 def play_episode(act, embedding):
     """Play an entire episode and report the reward"""
-    env = gym_environment.WSNEnvironment()
-    obs = env.reset(embedding)
+    env = gym_environment.WSNEnvironment(
+        problem_generator=lambda: (embedding, None)
+    )
+    obs = env.reset()
     total_reward = 0
     before = time.time()
     while True:

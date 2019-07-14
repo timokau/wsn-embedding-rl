@@ -52,8 +52,10 @@ def act(graph_tuple, randomness=0):
 
 def play_episode(embedding, max_restarts=None):
     """Play an entire episode and report the reward"""
-    env = gym_environment.WSNEnvironment()
-    obs = env.reset(embedding)
+    env = gym_environment.WSNEnvironment(
+        problem_generator=lambda: (embedding, None)
+    )
+    obs = env.reset()
     total_reward = 0
     if len(embedding.possibilities()) == 0:
         return (None, None)
@@ -75,7 +77,7 @@ def evaluate(episodes=100):
     times = []
     for _ in range(episodes):
         before = time.time()
-        emb = generator.random_embedding(rand=np.random)
+        emb = generator.Generator().random_embedding(rand=np.random)
         (reward, _timeslots) = play_episode(emb, 100)
         if reward is not None:
             rewards.append(reward)

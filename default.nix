@@ -29,6 +29,9 @@ in pkgs.mkShell {
       pycallgraph # profiling
       numpy
       scipy
+      multiprocess # multiprocessing with better serialization (lambdas)
+      pylint
+      pytest
     ]))
     graphviz # for pycallgraph profiling
   ];

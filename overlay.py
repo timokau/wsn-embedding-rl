@@ -144,7 +144,7 @@ def draw_overlay(
 
 
 if __name__ == "__main__":
-    from generator import random_overlay
+    from generator import Generator
 
-    draw_overlay(random_overlay(2, rand=np.random))
+    draw_overlay(Generator().random_overlay(2, rand=np.random))
     plt.show()

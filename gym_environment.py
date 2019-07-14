@@ -1,8 +1,5 @@
 """Gym environment wrapper for a Wireless Sensor Network"""
 
-import multiprocessing
-from queue import Queue
-
 import numpy as np
 import networkx as nx
 import tensorflow as tf
@@ -11,9 +8,6 @@ import gym
 from graph_nets import utils_np, utils_tf
 from graph_nets.graphs import GraphsTuple
 
-import generator
-
-QUEUE_SIZE = 16
 POSSIBLE_IDX = 0
 TIMESLOT_IDX = 1
 RELAY_IDX = 2
@@ -89,11 +83,13 @@ class WSNEnvironment(gym.Env):
 
     def __init__(
         self,
+        problem_generator,
         node_features=SUPPORTED_NODE_FEATURES,
         edge_features=SUPPORTED_EDGE_FEATURES,
         early_exit_factor=np.infty,
         seedgen=lambda: np.random.randint(0, 2 ** 32),
     ):
+        self.problem_generator = problem_generator
         self._node_features = node_features
         self._edge_features = edge_features
         assert set(self._node_features).issubset(SUPPORTED_NODE_FEATURES)
@@ -108,10 +104,6 @@ class WSNEnvironment(gym.Env):
 
         self.seedgen = seedgen
         self.early_exit_factor = early_exit_factor
-
-        # optimize reset
-        self._instance_queue = Queue(QUEUE_SIZE)
-        self._pool = None
 
     def _get_observation(self):
         # This is a complex function, but I see no use in splitting it
@@ -257,33 +249,12 @@ class WSNEnvironment(gym.Env):
         result = gym.spaces.Discrete(len(self.actions))
         return result
 
-    def _new_instance(self):
-        """Transparently uses multiprocessing"""
-        if self._pool is None:
-            # reserver one cpu for the actual training
-            cpus = max(1, multiprocessing.cpu_count() - 1)
-            cpus = min(8, cpus)
-            self._pool = multiprocessing.Pool(cpus)
-
-        # similar to a lazy infinite imap; preserves the order of the
-        # generated elements to prevent under-representation of long
-        # running ones.
-        while not self._instance_queue.full():
-            rand = np.random.RandomState(self.seedgen())
-            job = self._pool.map_async(generator.validated_random, [rand])
-            self._instance_queue.put_nowait(job)
-
-        next_job = self._instance_queue.get()
-        if not next_job.ready():
-            print("Blocked on queue")
-        return next_job.get()[0]
-
     # optional argument is fine
     # pylint: disable=arguments-differ
     def reset(self, embedding=None):
         self.baseline = None
         if embedding is None:
-            (embedding, baseline) = self._new_instance()
+            (embedding, baseline) = self.problem_generator()
             self.baseline = baseline
         self.env = embedding
         self.restarts = 0
@@ -294,15 +265,3 @@ class WSNEnvironment(gym.Env):
 
     def render(self, mode="human"):
         raise NotImplementedError()
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # don't pickle pool or queue
-        del state["_pool"]
-        del state["_instance_queue"]
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self._instance_queue = Queue(QUEUE_SIZE)
-        self._pool = None

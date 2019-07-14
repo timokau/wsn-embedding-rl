@@ -16,6 +16,7 @@ from networkx.drawing.nx_pydot import write_dot
 import gym_environment
 from draw_embedding import succinct_representation
 from tf_util import ragged_boolean_mask
+import generator
 
 NUM_PROCESSING_STEPS = 5
 
@@ -102,11 +103,13 @@ def run_training(
     node_feat = frozenset(node_feat_whitelist).difference(node_feat_blacklist)
     edge_feat = frozenset(edge_feat_whitelist).difference(edge_feat_blacklist)
 
+    parallel_gen = generator.ParallelGenerator(generator.Generator(), seedgen)
     env = gym_environment.WSNEnvironment(
         node_features=node_feat,
         edge_features=edge_feat,
         early_exit_factor=early_exit_factor,
         seedgen=seedgen,
+        problem_generator=parallel_gen.new_instance,
     )
 
     git_label = _git_describe()
