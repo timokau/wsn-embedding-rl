@@ -74,6 +74,7 @@ SUPPORTED_NODE_FEATURES = frozenset(
         "remaining_capacity",
         "requirement",
         "compute_fraction",
+        "unembedded_blocks_embeddable_after",
     )
 )
 SUPPORTED_EDGE_FEATURES = frozenset(
@@ -159,11 +160,25 @@ class WSNEnvironment(gym.Env):
             if "sink" in self._node_features:
                 features += [float(is_sink)]
             if "remaining_capacity" in self._node_features:
-                features += [embedding.remaining_capacity(enode.node)]
+                features += [remaining]
             if "requirement" in self._node_features:
                 features += [requirement]
             if "compute_fraction" in self._node_features:
                 features += [frac(requirement, remaining)]
+            if "unembedded_blocks_embeddable_after" in self._node_features:
+                embedded = set(embedding.taken_embeddings.keys()).union(
+                    [enode.block]
+                )
+                options = set(embedding.overlay.blocks()).difference(embedded)
+                remaining_after = remaining - requirement
+                embeddable = {
+                    option
+                    for option in options
+                    if embedding.overlay.requirement(option) < remaining_after
+                }
+                nropt = len(options)
+                fraction = len(embeddable) / nropt if nropt > 0 else 1
+                features += [fraction]
 
             input_graph.add_node(i, features=np.array(features))
 
