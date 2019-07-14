@@ -355,18 +355,41 @@ class PartialEmbedding:
         return source.node in node_path[:-1]
 
     def _connection_necessary(self, source, target):
+        (unnecessary, _reason) = self._why_connection_not_necessary(
+            source, target
+        )
+        return not unnecessary
+
+    def _why_connection_not_necessary(self, source, target):
+        """Returns why an edge is or is not necessary"""
         if self._node_already_visited_on_path(source, target):
-            return False
+            return (True, "Node already visited on path")
         if self._path_already_started(source, target):
-            return False
+            return (True, "Path already started")
         if self._source_already_in_path(source, target):
-            return False
-        return True
+            return (True, "Source already in path")
+        return (False, "")
 
     def _connection_feasible(self, source, target, timeslot):
-        return self._connection_feasible_in_timeslot(
+        (infeasible, _reason) = self.why_infeasible(source, target, timeslot)
+        return not infeasible
+
+    def why_infeasible(self, source, target, timeslot):
+        """Returns why an edge is or is not infeasible
+
+        Intended for debugging.
+        """
+        (infeasible_in_ts, reason) = self._why_infeasible_in_timeslot(
             source, target, timeslot
-        ) and self._connection_necessary(source, target)
+        )
+        if infeasible_in_ts:
+            return (True, reason)
+        (unneccessary, reason) = self._why_connection_not_necessary(
+            source, target
+        )
+        if unneccessary:
+            return (True, reason)
+        return (False, "")
 
     def _node_can_carry(self, node, block):
         """Weather or not a node can support the computation for a block
@@ -398,19 +421,26 @@ class PartialEmbedding:
         return False
 
     def _connection_feasible_in_timeslot(self, source, target, timeslot):
+        (infeasible, _reason) = self._why_infeasible_in_timeslot(
+            source, target, timeslot
+        )
+        return not infeasible
+
+    def _why_infeasible_in_timeslot(self, source, target, timeslot):
+        """Returns why an edge is or is not feasible in a timeslot"""
         if self._node_sending_other_data_in_timeslot(source, timeslot):
-            return False
+            return (True, "Node already sending other data in timeslot")
 
         if self._node_receiving_data_in_timeslot(source.node, timeslot):
-            return False
+            return (True, "Node already receiving data in timeslot")
 
         if not self._datarate_valid(source, target, timeslot):
-            return False
+            return (True, "Datarate is not valid")
 
         if self._invalidates_chosen(source, timeslot):
-            return False
+            return (True, "Invalidates an already chosen connection")
 
-        return True
+        return (False, "")
 
     def _remove_other_connections_from(self, enode):
         """Removes not-chosen outedges for an enode"""
