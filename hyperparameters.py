@@ -38,4 +38,5 @@ DEFAULT = {
     "edge_feat_blacklist": frozenset(),
     "generator_args": GENERATOR_DEFAULTS,
     "exploration_fraction": 0.1,
+    "rl_seed": STATE.randint(0, 2 ** 32),
 }
