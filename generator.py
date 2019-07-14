@@ -7,6 +7,7 @@ import math
 from queue import Queue
 
 import multiprocess as multiprocessing
+import psutil
 import numpy as np
 from scipy import stats
 import networkx as nx
@@ -201,9 +202,6 @@ class Generator:
         return overlay
 
 
-QUEUE_SIZE = 16
-
-
 class ParallelGenerator:
     """Generator that uses multiprocessing to amortize generation"""
 
@@ -212,23 +210,39 @@ class ParallelGenerator:
         cpus = max(1, multiprocessing.cpu_count() - 1)
         cpus = min(8, cpus)
         self._pool = multiprocessing.Pool(cpus)
-        self._instance_queue = Queue(QUEUE_SIZE)
+        self._instance_queue = Queue()
         self.generator = generator
         self.seedgen = seedgen
 
+    def _spawn_new_job(self):
+        rand = np.random.RandomState(self.seedgen())
+        job = self._pool.map_async(self.generator.validated_random, [rand])
+        self._instance_queue.put_nowait(job)
+
+    def _grow_queue(self):
+        """Grow the queue if sufficient resources are available"""
+        has_idle_core = min(psutil.cpu_percent(interval=0.1, percpu=True)) < 60
+        has_enough_ram = psutil.virtual_memory().percent < 80
+        if has_idle_core and has_enough_ram:
+            self._spawn_new_job()
+
     def new_instance(self):
-        """Transparently uses multiprocessing"""
-        # similar to a lazy infinite imap; preserves the order of the
-        # generated elements to prevent under-representation of long
-        # running ones.
-        while not self._instance_queue.full():
-            rand = np.random.RandomState(self.seedgen())
-            job = self._pool.map_async(self.generator.validated_random, [rand])
-            self._instance_queue.put_nowait(job)
+        """Transparently uses multiprocessing
+
+        Acts similar to a lazy infinite imap; preserves the order of the
+        generated elements to prevent under-representation of long
+        running ones and uses seeds in a deterministic order.
+        """
+        # first spawn a new job to replace the result we're about to use
+        self._spawn_new_job()
 
         next_job = self._instance_queue.get()
         if not next_job.ready():
-            print("Blocked on queue")
+            # If we're blocked, grow the queue. This way the queue
+            # dynamically grows until at some point we aren't blocked
+            # anymore (as long as the processor can keep up).
+            self._grow_queue()
+            print(f"Blocked on queue (size {self._instance_queue.qsize()})")
         return next_job.get()[0]
 
     def __getstate__(self):

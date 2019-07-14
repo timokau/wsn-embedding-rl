@@ -30,6 +30,7 @@ in pkgs.mkShell {
       numpy
       scipy
       multiprocess # multiprocessing with better serialization (lambdas)
+      psutil # load balancing
       pylint
       pytest
     ]))
