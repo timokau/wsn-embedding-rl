@@ -18,7 +18,7 @@ def load_agent_from_file(name):
     # needed to get the unpickling to work since the pickling is done
     # from a __name__=="__main__"
     # pylint: disable=unused-import
-    from dqn_agent import deepq_graph_network
+    from q_network import EdgeQNetwork
 
     act = load_act(name)
     return act

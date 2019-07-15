@@ -7,6 +7,8 @@ from functools import partial
 from graph_nets import modules
 from graph_nets import utils_tf
 import sonnet as snt
+import tensorflow as tf
+from tf_util import ragged_boolean_mask
 
 # The abstract sonnet _build function has a (*args, **kwargs) argument
 # list, so we can pass whatever we want.
@@ -133,13 +135,13 @@ class EncodeProcessDecode(snt.AbstractModule):
 
     def __init__(
         self,
-        edge_output_size=None,
-        node_output_size=None,
-        global_output_size=None,
+        edge_output_size,
+        node_output_size,
+        global_output_size,
         # for simplicity, all layers have the same size and all MLPs use
         # the same structure
-        latent_size=16,
-        num_layers=2,
+        latent_size,
+        num_layers,
         name="EncodeProcessDecode",
     ):
         super(EncodeProcessDecode, self).__init__(name=name)
@@ -162,3 +164,56 @@ class EncodeProcessDecode(snt.AbstractModule):
             decoded_op = self._decoder(latent)
             output_ops.append(self._output_transform(decoded_op))
         return output_ops
+
+
+class EdgeQNetwork(snt.AbstractModule):
+    """Takes an input_graph, returns q-values.
+
+    graph_nets based model that takes an input graph and returns a
+    (variable length) vector of q-values corresponding to the edges in
+    the input graph that represent valid actions (according to the
+    boolean edge attribute in first position)"""
+
+    def __init__(
+        self,
+        latent_size,
+        num_layers,
+        num_processing_steps,
+        edge_filter_idx,
+        name="edge_q_network",
+    ):
+        self._latent_size = latent_size
+        self._num_layers = num_layers
+        self._num_processing_steps = num_processing_steps
+        self._edge_filter_idx = edge_filter_idx
+        super(EdgeQNetwork, self).__init__(name=name)
+
+    def _build(self, graph_tuple):
+        model = EncodeProcessDecode(
+            edge_output_size=1,  # edge output is the Q-value
+            global_output_size=0,
+            node_output_size=0,
+            latent_size=self._latent_size,
+            num_layers=self._num_layers,
+        )
+        out = model(graph_tuple, self._num_processing_steps)[-1]
+
+        q_vals = tf.cast(tf.reshape(out.edges, [-1]), tf.float32)
+        ragged_q_vals = tf.RaggedTensor.from_row_lengths(
+            q_vals, tf.cast(out.n_edge, tf.int64)
+        )
+
+        def edge_is_possible_action(edge):
+            possible = edge[self._edge_filter_idx]
+            return tf.math.equal(possible, 1)
+
+        viable_actions_mask = tf.map_fn(
+            edge_is_possible_action, graph_tuple.edges, dtype=tf.bool
+        )
+        ragged_mask = tf.RaggedTensor.from_row_lengths(
+            viable_actions_mask, tf.cast(graph_tuple.n_edge, tf.int64)
+        )
+
+        result = ragged_boolean_mask(ragged_q_vals, ragged_mask)
+
+        return result.to_tensor(default_value=tf.float32.min)

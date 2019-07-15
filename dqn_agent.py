@@ -2,9 +2,6 @@
 
 import subprocess
 import datetime
-from functools import partial
-
-import tensorflow as tf
 
 # needs this fork of baselines:
 # https://github.com/timokau/baselines/tree/graph_nets-deepq
@@ -13,48 +10,10 @@ from baselines import logger
 from baselines.deepq import learn
 from networkx.drawing.nx_pydot import write_dot
 
-from q_network import EncodeProcessDecode
+from q_network import EdgeQNetwork
 import gym_environment
 from generator import Generator, ParallelGenerator
 from draw_embedding import succinct_representation
-from tf_util import ragged_boolean_mask
-
-
-def deepq_graph_network(inpt, num_processing_steps, latent_size, num_layers):
-    """Takes an input_graph, returns q-values.
-
-    graph_nets based model that takes an input graph and returns a
-    (variable length) vector of q-values corresponding to the edges in
-    the input graph that represent valid actions (according to the
-    boolean edge attribute in second position)"""
-    model = EncodeProcessDecode(
-        edge_output_size=1,
-        global_output_size=0,
-        node_output_size=0,
-        latent_size=latent_size,
-        num_layers=num_layers,
-    )
-    out = model(inpt, num_processing_steps)[-1]
-
-    q_vals = tf.cast(tf.reshape(out.edges, [-1]), tf.float32)
-    ragged_q_vals = tf.RaggedTensor.from_row_lengths(
-        q_vals, tf.cast(out.n_edge, tf.int64)
-    )
-
-    def edge_is_possible_action(edge):
-        possible = edge[gym_environment.POSSIBLE_IDX]
-        return tf.math.equal(possible, 1)
-
-    viable_actions_mask = tf.map_fn(
-        edge_is_possible_action, inpt.edges, dtype=tf.bool
-    )
-    ragged_mask = tf.RaggedTensor.from_row_lengths(
-        viable_actions_mask, tf.cast(inpt.n_edge, tf.int64)
-    )
-
-    result = ragged_boolean_mask(ragged_q_vals, ragged_mask)
-
-    return result.to_tensor(default_value=tf.float32.min)
 
 
 def save_episode_result_callback(lcl, _glb):
@@ -123,14 +82,18 @@ def run_training(
         format_strs=["stdout", "csv", "tensorboard"],
     )
 
+    # needs to be lambda since the scope at constructor time is used
+    # pylint: disable=unnecessary-lambda
+    q_model = lambda inp: EdgeQNetwork(
+        edge_filter_idx=gym_environment.POSSIBLE_IDX,
+        num_processing_steps=num_processing_steps,
+        latent_size=latent_size,
+        num_layers=num_layers,
+    )(inp)
+
     learn(
         env,
-        partial(
-            deepq_graph_network,
-            num_processing_steps=num_processing_steps,
-            latent_size=latent_size,
-            num_layers=num_layers,
-        ),
+        q_model,
         make_obs_ph=lambda name: env.observation_space.to_placeholders(),
         as_is=True,
         dueling=False,
