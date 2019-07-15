@@ -4,7 +4,7 @@ import networkx as nx
 import numpy as np
 
 import gym_environment
-from embedding import PartialEmbedding
+from embedding import PartialEmbedding, ENode
 
 
 def frac(a, b):
@@ -17,10 +17,48 @@ def frac(a, b):
 class ObservationBuilder:
     """Build a feature graph from a partial embedding"""
 
-    # pylint: disable=too-few-public-methods
     def __init__(self, node_features, edge_features):
         self._node_features = node_features
         self._edge_features = edge_features
+
+    def extract_node_features(self, embedding: PartialEmbedding, enode: ENode):
+        """Build feature array for a single enode"""
+        inode = embedding.infra.graph.node[enode.node]
+        is_sink = enode.node == embedding.infra.sink
+        requirement = embedding.overlay.requirement(enode.block)
+        remaining = embedding.remaining_capacity(enode.node)
+
+        features = []
+        if "posx" in self._node_features:
+            features += [inode["pos"][0]]
+        if "posy" in self._node_features:
+            features += [inode["pos"][1]]
+        if "relay" in self._node_features:
+            features += [float(enode.relay)]
+        if "sink" in self._node_features:
+            features += [float(is_sink)]
+        if "remaining_capacity" in self._node_features:
+            features += [remaining]
+        if "requirement" in self._node_features:
+            features += [requirement]
+        if "compute_fraction" in self._node_features:
+            features += [frac(requirement, remaining)]
+        if "unembedded_blocks_embeddable_after" in self._node_features:
+            embedded = set(embedding.taken_embeddings.keys()).union(
+                [enode.block]
+            )
+            options = set(embedding.overlay.blocks()).difference(embedded)
+            remaining_after = remaining - requirement
+            embeddable = {
+                option
+                for option in options
+                if embedding.overlay.requirement(option) < remaining_after
+            }
+            nropt = len(options)
+            fraction = len(embeddable) / nropt if nropt > 0 else 1
+            features += [fraction]
+
+        return features
 
     def get_observation(self, embedding: PartialEmbedding):
         """Extracts features from an embedding and returns a graph-nets
@@ -32,9 +70,7 @@ class ObservationBuilder:
         # pylint: disable=too-many-branches
         # build graphs from scratch, since we need to change the node
         # indexing (graph_nets can only deal with integer indexed nodes)
-        infra = embedding.infra
         overlay = embedding.overlay
-        infra_graph = infra.graph
 
         input_graph = nx.MultiDiGraph()
         node_to_index = dict()
@@ -42,44 +78,11 @@ class ObservationBuilder:
 
         # add the nodes
         for (i, enode) in enumerate(embedding.graph.nodes()):
-            inode = infra_graph.node[enode.node]
             node_to_index[enode] = i
             index_to_node[i] = enode
-            is_sink = enode.node == infra.sink
-            requirement = overlay.requirement(enode.block)
-            remaining = embedding.remaining_capacity(enode.node)
-
-            features = []
-            if "posx" in self._node_features:
-                features += [inode["pos"][0]]
-            if "posy" in self._node_features:
-                features += [inode["pos"][1]]
-            if "relay" in self._node_features:
-                features += [float(enode.relay)]
-            if "sink" in self._node_features:
-                features += [float(is_sink)]
-            if "remaining_capacity" in self._node_features:
-                features += [remaining]
-            if "requirement" in self._node_features:
-                features += [requirement]
-            if "compute_fraction" in self._node_features:
-                features += [frac(requirement, remaining)]
-            if "unembedded_blocks_embeddable_after" in self._node_features:
-                embedded = set(embedding.taken_embeddings.keys()).union(
-                    [enode.block]
-                )
-                options = set(overlay.blocks()).difference(embedded)
-                remaining_after = remaining - requirement
-                embeddable = {
-                    option
-                    for option in options
-                    if overlay.requirement(option) < remaining_after
-                }
-                nropt = len(options)
-                fraction = len(embeddable) / nropt if nropt > 0 else 1
-                features += [fraction]
-
-            input_graph.add_node(i, features=np.array(features))
+            input_graph.add_node(
+                i, features=self.extract_node_features(embedding, enode)
+            )
 
         # add the edges
         for (u, v, k, d) in embedding.graph.edges(data=True, keys=True):
