@@ -120,7 +120,7 @@ class WSNEnvironment(gym.Env):
         self.early_exit_factor = early_exit_factor
 
     def _get_observation(self):
-        (graph, node_to_index, index_to_node) = ObservationBuilder(
+        graph = ObservationBuilder(
             edge_features=self._edge_features,
             node_features=self._node_features,
         ).get_observation(self.env)
@@ -136,12 +136,11 @@ class WSNEnvironment(gym.Env):
             if not possible:
                 continue
             else:
-                source = index_to_node[u]
-                target = index_to_node[v]
-                timeslot = int(d[TIMESLOT_IDX])
+                source = graph.node[u]["represents"]
+                target = graph.node[v]["represents"]
+                timeslot = d[TIMESLOT_IDX]
                 self.actions.append((source, target, timeslot))
 
-        self.last_translation_dict = node_to_index
         return gt
 
     def step(self, action):

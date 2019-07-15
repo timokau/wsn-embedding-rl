@@ -114,14 +114,14 @@ class ObservationBuilder:
         # indexing (graph_nets can only deal with integer indexed nodes)
         input_graph = nx.MultiDiGraph()
         node_to_index = dict()
-        index_to_node = dict()
 
         # add the nodes
         for (i, enode) in enumerate(embedding.graph.nodes()):
             node_to_index[enode] = i
-            index_to_node[i] = enode
             input_graph.add_node(
-                i, features=self.extract_node_features(embedding, enode)
+                i,
+                features=self.extract_node_features(embedding, enode),
+                represents=enode,
             )
 
         # add the edges
@@ -135,4 +135,4 @@ class ObservationBuilder:
 
         # no globals in input
         input_graph.graph["features"] = np.array([0.0])
-        return (input_graph, node_to_index, index_to_node)
+        return input_graph
