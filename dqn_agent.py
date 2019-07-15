@@ -11,16 +11,16 @@ import tensorflow as tf
 # see https://github.com/openai/baselines/pull/931
 from baselines import logger
 from baselines.deepq import learn
-from graph_nets.demos.models import EncodeProcessDecode
 from networkx.drawing.nx_pydot import write_dot
 
+from q_network import EncodeProcessDecode
 import gym_environment
 from generator import Generator, ParallelGenerator
 from draw_embedding import succinct_representation
 from tf_util import ragged_boolean_mask
 
 
-def deepq_graph_network(inpt, num_processing_steps):
+def deepq_graph_network(inpt, num_processing_steps, latent_size, num_layers):
     """Takes an input_graph, returns q-values.
 
     graph_nets based model that takes an input graph and returns a
@@ -28,7 +28,11 @@ def deepq_graph_network(inpt, num_processing_steps):
     the input graph that represent valid actions (according to the
     boolean edge attribute in second position)"""
     model = EncodeProcessDecode(
-        edge_output_size=1, global_output_size=0, node_output_size=0
+        edge_output_size=1,
+        global_output_size=0,
+        node_output_size=0,
+        latent_size=latent_size,
+        num_layers=num_layers,
     )
     out = model(inpt, num_processing_steps)[-1]
 
@@ -84,6 +88,8 @@ def run_training(
     exploration_fraction,
     early_exit_factor,
     num_processing_steps,
+    latent_size,
+    num_layers,
     seedgen,
     rl_seed,
     experiment_name,
@@ -120,7 +126,10 @@ def run_training(
     learn(
         env,
         partial(
-            deepq_graph_network, num_processing_steps=num_processing_steps
+            deepq_graph_network,
+            num_processing_steps=num_processing_steps,
+            latent_size=latent_size,
+            num_layers=num_layers,
         ),
         make_obs_ph=lambda name: env.observation_space.to_placeholders(),
         as_is=True,
