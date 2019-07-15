@@ -60,18 +60,56 @@ class ObservationBuilder:
 
         return features
 
+    def extract_edge_features(
+        self,
+        embedding: PartialEmbedding,
+        source: ENode,
+        target: ENode,
+        timeslot: int,
+        edge_data,
+    ):
+        """Build feature array for a single edge"""
+        source_chosen = embedding.graph.nodes[source]["chosen"]
+        chosen = edge_data["chosen"]
+        capacity = embedding.known_capacity(source.node, target.node, timeslot)
+        datarate_requirement = embedding.overlay.datarate(source.block)
+        possible = not chosen and source_chosen
+        features = [float(possible)]
+        additional_timeslot = timeslot >= embedding.used_timeslots
+
+        if "timeslot" in self._edge_features:
+            features += [float(timeslot)]
+        if "chosen" in self._edge_features:
+            features += [float(chosen)]
+        if "capacity" in self._edge_features:
+            features += [capacity]
+        if "additional_timeslot" in self._edge_features:
+            features += [float(additional_timeslot)]
+        if "datarate_requirement" in self._edge_features:
+            features += [datarate_requirement]
+        if "datarate_fraction" in self._edge_features:
+            features += [frac(datarate_requirement, capacity)]
+        if "is_broadcast" in self._edge_features:
+            is_broadcast = False
+            for (other_so, _other_ta) in embedding.taken_edges_in[timeslot]:
+                if (
+                    other_so.block == source.block
+                    and other_so.node == source.node
+                ):
+                    is_broadcast = True
+            features += [float(is_broadcast)]
+
+        assert features[gym_environment.POSSIBLE_IDX] == float(possible)
+        assert features[gym_environment.TIMESLOT_IDX] == float(timeslot)
+        return features
+
     def get_observation(self, embedding: PartialEmbedding):
         """Extracts features from an embedding and returns a graph-nets
         compatible graph"""
         # This is a complex function, but I see no use in splitting it
         # up.
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-statements
-        # pylint: disable=too-many-branches
         # build graphs from scratch, since we need to change the node
         # indexing (graph_nets can only deal with integer indexed nodes)
-        overlay = embedding.overlay
-
         input_graph = nx.MultiDiGraph()
         node_to_index = dict()
         index_to_node = dict()
@@ -86,42 +124,11 @@ class ObservationBuilder:
 
         # add the edges
         for (u, v, k, d) in embedding.graph.edges(data=True, keys=True):
-            source_chosen = embedding.graph.nodes[u]["chosen"]
-            chosen = d["chosen"]
-            timeslot = d["timeslot"]
-            capacity = embedding.known_capacity(u.node, v.node, timeslot)
-            datarate_requirement = overlay.datarate(u.block)
-            possible = not chosen and source_chosen
-            features = [float(possible)]
-            additional_timeslot = timeslot >= embedding.used_timeslots
-
-            if "timeslot" in self._edge_features:
-                features += [float(timeslot)]
-            if "chosen" in self._edge_features:
-                features += [float(chosen)]
-            if "capacity" in self._edge_features:
-                features += [capacity]
-            if "additional_timeslot" in self._edge_features:
-                features += [float(additional_timeslot)]
-            if "datarate_requirement" in self._edge_features:
-                features += [datarate_requirement]
-            if "datarate_fraction" in self._edge_features:
-                features += [frac(datarate_requirement, capacity)]
-            if "is_broadcast" in self._edge_features:
-                is_broadcast = False
-                for (source, _target) in embedding.taken_edges_in[timeslot]:
-                    if source.block == u.block and source.node == u.node:
-                        is_broadcast = True
-                features += [float(is_broadcast)]
-
-            assert features[gym_environment.POSSIBLE_IDX] == float(possible)
-            assert features[gym_environment.TIMESLOT_IDX] == float(timeslot)
-
             input_graph.add_edge(
                 node_to_index[u],
                 node_to_index[v],
                 k,
-                features=np.array(features),
+                features=self.extract_edge_features(embedding, u, v, k, d),
             )
 
         # no globals in input
