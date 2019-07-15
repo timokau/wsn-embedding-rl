@@ -29,6 +29,7 @@ DEFAULT = {
     "train_freq": 1,
     "batch_size": 32,
     "early_exit_factor": 1.5,
+    "num_processing_steps": 5,
     "seedgen": lambda: STATE.randint(0, 2 ** 32),
     "experiment_name": "default",
     "prioritized": True,

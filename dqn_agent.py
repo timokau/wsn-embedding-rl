@@ -2,6 +2,7 @@
 
 import subprocess
 import datetime
+from functools import partial
 
 import tensorflow as tf
 
@@ -18,20 +19,18 @@ from generator import Generator, ParallelGenerator
 from draw_embedding import succinct_representation
 from tf_util import ragged_boolean_mask
 
-NUM_PROCESSING_STEPS = 5
 
-
-def deepq_graph_network(inpt):
+def deepq_graph_network(inpt, num_processing_steps):
     """Takes an input_graph, returns q-values.
 
     graph_nets based model that takes an input graph and returns a
     (variable length) vector of q-values corresponding to the edges in
     the input graph that represent valid actions (according to the
     boolean edge attribute in second position)"""
-    out = EncodeProcessDecode(
+    model = EncodeProcessDecode(
         edge_output_size=1, global_output_size=0, node_output_size=0
-    )(inpt, NUM_PROCESSING_STEPS)
-    out = out[-1]
+    )
+    out = model(inpt, num_processing_steps)[-1]
 
     q_vals = tf.cast(tf.reshape(out.edges, [-1]), tf.float32)
     ragged_q_vals = tf.RaggedTensor.from_row_lengths(
@@ -84,6 +83,7 @@ def run_training(
     batch_size,
     exploration_fraction,
     early_exit_factor,
+    num_processing_steps,
     seedgen,
     rl_seed,
     experiment_name,
@@ -119,7 +119,9 @@ def run_training(
 
     learn(
         env,
-        deepq_graph_network,
+        partial(
+            deepq_graph_network, num_processing_steps=num_processing_steps
+        ),
         make_obs_ph=lambda name: env.observation_space.to_placeholders(),
         as_is=True,
         dueling=False,
