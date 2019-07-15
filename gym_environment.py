@@ -7,10 +7,7 @@ import gym
 from graph_nets import utils_np, utils_tf
 from graph_nets.graphs import GraphsTuple
 
-from observation import ObservationBuilder
-
-POSSIBLE_IDX = 0
-TIMESLOT_IDX = 1
+from observation import ObservationBuilder, TIMESLOT_IDX, POSSIBLE_IDX
 
 
 class GraphSpace(gym.spaces.Space):

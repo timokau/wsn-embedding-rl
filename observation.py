@@ -3,8 +3,10 @@
 import networkx as nx
 import numpy as np
 
-import gym_environment
 from embedding import PartialEmbedding, ENode
+
+POSSIBLE_IDX = 0
+TIMESLOT_IDX = 1
 
 
 def frac(a, b):
@@ -99,8 +101,8 @@ class ObservationBuilder:
                     is_broadcast = True
             features += [float(is_broadcast)]
 
-        assert features[gym_environment.POSSIBLE_IDX] == float(possible)
-        assert features[gym_environment.TIMESLOT_IDX] == float(timeslot)
+        assert features[POSSIBLE_IDX] == float(possible)
+        assert features[TIMESLOT_IDX] == float(timeslot)
         return features
 
     def get_observation(self, embedding: PartialEmbedding):
