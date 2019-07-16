@@ -13,6 +13,7 @@ import dill
 
 from q_network import EdgeQNetwork
 import gym_environment
+from observation import TIMESLOT_IDX, POSSIBLE_IDX
 from generator import Generator, ParallelGenerator
 from draw_embedding import succinct_representation
 
@@ -77,11 +78,14 @@ def run_training(
     # needs to be lambda since the scope at constructor time is used
     # pylint: disable=unnecessary-lambda
     q_model = lambda inp: EdgeQNetwork(
-        edge_filter_idx=gym_environment.POSSIBLE_IDX,
+        edge_filter_idx=POSSIBLE_IDX,
         num_processing_steps=num_processing_steps,
         latent_size=latent_size,
         num_layers=num_layers,
+        # ignore medatadata features during learning
+        ignore_first_edge_features=2,
     )(inp)
+    assert TIMESLOT_IDX < 2 and POSSIBLE_IDX < 2
 
     learn(
         env,

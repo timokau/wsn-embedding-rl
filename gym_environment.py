@@ -76,8 +76,8 @@ class WSNEnvironment(gym.Env):
         self._features = features
 
         node_dim = sum([feature.node_dim for feature in self._features])
-        # always has to include "possible" bit
-        edge_dim = 1 + sum([feature.edge_dim for feature in self._features])
+        # always has to include filter ("possible") and edge id
+        edge_dim = 2 + sum([feature.edge_dim for feature in self._features])
         self.observation_space = GraphSpace(
             global_dim=1, node_dim=node_dim, edge_dim=edge_dim
         )

@@ -41,7 +41,7 @@ class ObservationBuilder:
             not embedding.graph.edges[(source, target, timeslot)]["chosen"]
             and embedding.graph.nodes[source]["chosen"]
         )
-        features = [float(possible)]
+        features = [float(possible), float(timeslot)]
 
         for feature in self._features:
             features.extend(

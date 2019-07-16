@@ -180,12 +180,14 @@ class EdgeQNetwork(snt.AbstractModule):
         num_layers,
         num_processing_steps,
         edge_filter_idx,
+        ignore_first_edge_features,
         name="edge_q_network",
     ):
         self._latent_size = latent_size
         self._num_layers = num_layers
         self._num_processing_steps = num_processing_steps
         self._edge_filter_idx = edge_filter_idx
+        self._ignore_first_edge_features = ignore_first_edge_features
         super(EdgeQNetwork, self).__init__(name=name)
 
     def _build(self, graph_tuple):
@@ -196,7 +198,16 @@ class EdgeQNetwork(snt.AbstractModule):
             latent_size=self._latent_size,
             num_layers=self._num_layers,
         )
-        out = model(graph_tuple, self._num_processing_steps)[-1]
+        # edges is 2d tensor of all edges in all graphs
+        # ignore some columns for learning, for example possible bit and
+        # edge id
+        learn_graph_tuple = graph_tuple.map(
+            lambda edges: tf.slice(
+                edges, [0, self._ignore_first_edge_features], [-1, -1]
+            ),
+            fields=["edges"],
+        )
+        out = model(learn_graph_tuple, self._num_processing_steps)[-1]
 
         q_vals = tf.cast(tf.reshape(out.edges, [-1]), tf.float32)
         ragged_q_vals = tf.RaggedTensor.from_row_lengths(
