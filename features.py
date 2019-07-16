@@ -85,8 +85,12 @@ class EdgeFeature(Feature):
         )
 
 
-def _is_broadcast(embedding, source, _target, timeslot):
-    for (other_so, _other_ta) in embedding.taken_edges_in[timeslot]:
+def _is_broadcast(embedding, source, target, timeslot):
+    for (other_so, other_ta) in embedding.taken_edges_in[timeslot]:
+        if other_so == source and other_ta == target:
+            continue
+        if other_so.node == other_ta.node:
+            continue  # self loop, nothing is sent
         if other_so.block == source.block and other_so.node == source.node:
             return True
     return False

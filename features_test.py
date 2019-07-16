@@ -1,7 +1,7 @@
 """Tests the feature extraction"""
 
 # Tests are verbose.
-# pylint: disable=too-many-statements
+# pylint: disable=too-many-statements, too-many-locals
 
 import math
 
@@ -150,3 +150,19 @@ def test_features():
     )
     # this is an edge within a node, nothing is actually sent
     assert edge_feature("datarate_fraction", ein, esi, 2)[0] == 0
+
+    # since this is the only chosen edge from that block, no broadcast
+    assert edge_feature("is_broadcast", eso1, erelay, 0)[0] == 0
+    # since eso1 -> erelay1 is already chosen, broadcast
+    assert edge_feature("is_broadcast", eso1, ENode(bin2, nsi), 0)[0] == 1
+
+    print(embedding.why_infeasible(eso2, ENode(bin3, nso2), 0))
+    # take a loop in nso2
+    assert embedding.take_action(eso2, ENode(bin3, nso2), 2)
+    # this doesn't count as broadcast, looping is not actually sending
+    assert edge_feature("is_broadcast", eso2, esi, 2)[0] == 0
+    # make sure broadcasting works even with relays
+    # on the same node as the already taken relay that sends bso1s data
+    # to ein1 in ts 1
+    erelay2 = ENode(bso1, ninterm, bin2)
+    assert edge_feature("is_broadcast", erelay2, ENode(bin2, nso2), 1)[0] == 1
