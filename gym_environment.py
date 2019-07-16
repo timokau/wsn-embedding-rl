@@ -9,6 +9,10 @@ from graph_nets.graphs import GraphsTuple
 
 from observation import ObservationBuilder, TIMESLOT_IDX, POSSIBLE_IDX
 
+# this is a frozenset, pylint just isn't clever enough to realize that
+# pylint: disable=dangerous-default-value
+from features import SUPPORTED_NODE_FEATURES
+
 
 class GraphSpace(gym.spaces.Space):
     """Graph space for usage with graph_nets"""
@@ -63,18 +67,6 @@ class GraphSpace(gym.spaces.Space):
         return placeholders
 
 
-SUPPORTED_NODE_FEATURES = frozenset(
-    (
-        "posx",
-        "posy",
-        "relay",
-        "sink",
-        "remaining_capacity",
-        "requirement",
-        "compute_fraction",
-        "unembedded_blocks_embeddable_after",
-    )
-)
 SUPPORTED_EDGE_FEATURES = frozenset(
     (
         "timeslot",
@@ -109,7 +101,7 @@ class WSNEnvironment(gym.Env):
         assert set(self._node_features).issubset(SUPPORTED_NODE_FEATURES)
         assert set(self._edge_features).issubset(SUPPORTED_EDGE_FEATURES)
 
-        node_dim = len(self._node_features)
+        node_dim = sum([feature.dim for feature in self._node_features])
         # always has to include "possible" bit
         edge_dim = 1 + len(self._edge_features)
         self.observation_space = GraphSpace(
@@ -208,7 +200,6 @@ class WSNEnvironment(gym.Env):
         self.env = embedding
         self.restarts = 0
         self.total_reward = 0
-        self.last_translation_dict = dict()
         self._last_ob = self._get_observation()
         return self._last_ob
 

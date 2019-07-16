@@ -25,41 +25,9 @@ class ObservationBuilder:
 
     def extract_node_features(self, embedding: PartialEmbedding, enode: ENode):
         """Build feature array for a single enode"""
-        inode = embedding.infra.graph.node[enode.node]
-        is_sink = enode.node == embedding.infra.sink
-        requirement = embedding.overlay.requirement(enode.block)
-        remaining = embedding.remaining_capacity(enode.node)
-
         features = []
-        if "posx" in self._node_features:
-            features += [inode["pos"][0]]
-        if "posy" in self._node_features:
-            features += [inode["pos"][1]]
-        if "relay" in self._node_features:
-            features += [float(enode.relay)]
-        if "sink" in self._node_features:
-            features += [float(is_sink)]
-        if "remaining_capacity" in self._node_features:
-            features += [remaining]
-        if "requirement" in self._node_features:
-            features += [requirement]
-        if "compute_fraction" in self._node_features:
-            features += [frac(requirement, remaining)]
-        if "unembedded_blocks_embeddable_after" in self._node_features:
-            embedded = set(embedding.taken_embeddings.keys()).union(
-                [enode.block]
-            )
-            options = set(embedding.overlay.blocks()).difference(embedded)
-            remaining_after = remaining - requirement
-            embeddable = {
-                option
-                for option in options
-                if embedding.overlay.requirement(option) < remaining_after
-            }
-            nropt = len(options)
-            fraction = len(embeddable) / nropt if nropt > 0 else 1
-            features += [fraction]
-
+        for node_feature in self._node_features:
+            features.extend(node_feature.compute(embedding, enode))
         return features
 
     def extract_edge_features(
