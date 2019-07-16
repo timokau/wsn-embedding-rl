@@ -161,7 +161,7 @@ SUPPORTED_FEATURES = [
     ),
     EdgeFeature(
         "datarate_requirement",
-        lambda emb, u, v, t: t >= emb.overlay.datarate(u.block),
+        lambda emb, u, v, t: emb.overlay.datarate(u.acting_as),
     ),
     EdgeFeature(
         "datarate_fraction",
