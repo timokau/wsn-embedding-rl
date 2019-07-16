@@ -83,3 +83,7 @@ def test_features():
     assert node_feature("remaining_capacity", erelay)[0] == approx(0)
     assert node_feature("remaining_capacity", ein)[0] == np.infty
     assert node_feature("remaining_capacity", erelay_unchosen)[0] == approx(0)
+
+    assert node_feature("weight", eso1)[0] == approx(1)
+    assert node_feature("weight", esi)[0] == approx(4)
+    assert node_feature("weight", erelay)[0] == approx(0)
