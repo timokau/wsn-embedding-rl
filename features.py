@@ -65,7 +65,7 @@ class NodeFeature(Feature):
 
     def __init__(self, name, compute_fun, dim=1):
         super().__init__(
-            "node_feature_" + name,
+            "node_" + name,
             edge_dim=0,
             edge_fun=None,
             node_dim=dim,
@@ -78,7 +78,7 @@ class EdgeFeature(Feature):
 
     def __init__(self, name, compute_fun, dim=1):
         super().__init__(
-            "edge_feature_" + name,
+            "edge_" + name,
             edge_dim=dim,
             edge_fun=compute_fun,
             node_dim=0,
@@ -157,3 +157,11 @@ SUPPORTED_FEATURES = [
     ),
     EdgeFeature("is_broadcast", _is_broadcast),
 ]
+
+
+def features_by_name():
+    """Results a dict of all supported features"""
+    result = dict()
+    for feature in SUPPORTED_FEATURES:
+        result[feature.name] = feature
+    return result
