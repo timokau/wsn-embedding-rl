@@ -39,35 +39,17 @@ class ObservationBuilder:
         edge_data,
     ):
         """Build feature array for a single edge"""
-        source_chosen = embedding.graph.nodes[source]["chosen"]
-        chosen = edge_data["chosen"]
-        capacity = embedding.known_capacity(source.node, target.node, timeslot)
-        datarate_requirement = embedding.overlay.datarate(source.block)
-        possible = not chosen and source_chosen
+        possible = (
+            not edge_data["chosen"] and embedding.graph.nodes[source]["chosen"]
+        )
         features = [float(possible)]
-        additional_timeslot = timeslot >= embedding.used_timeslots
 
-        if "timeslot" in self._edge_features:
-            features += [float(timeslot)]
-        if "chosen" in self._edge_features:
-            features += [float(chosen)]
-        if "capacity" in self._edge_features:
-            features += [capacity]
-        if "additional_timeslot" in self._edge_features:
-            features += [float(additional_timeslot)]
-        if "datarate_requirement" in self._edge_features:
-            features += [datarate_requirement]
-        if "datarate_fraction" in self._edge_features:
-            features += [frac(datarate_requirement, capacity)]
-        if "is_broadcast" in self._edge_features:
-            is_broadcast = False
-            for (other_so, _other_ta) in embedding.taken_edges_in[timeslot]:
-                if (
-                    other_so.block == source.block
-                    and other_so.node == source.node
-                ):
-                    is_broadcast = True
-            features += [float(is_broadcast)]
+        for edge_feature in self._edge_features:
+            features.extend(
+                edge_feature.compute(
+                    embedding, source, target, timeslot, edge_data
+                )
+            )
 
         assert features[POSSIBLE_IDX] == float(possible)
         assert features[TIMESLOT_IDX] == float(timeslot)

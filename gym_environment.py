@@ -62,19 +62,6 @@ class GraphSpace(gym.spaces.Space):
         return placeholders
 
 
-SUPPORTED_EDGE_FEATURES = frozenset(
-    (
-        "timeslot",
-        "chosen",
-        "capacity",
-        "datarate_requirement",
-        "datarate_fraction",
-        "additional_timeslot",
-        "is_broadcast",
-    )
-)
-
-
 class WSNEnvironment(gym.Env):
     """Wireless Sensor Network Environment"""
 
@@ -93,11 +80,10 @@ class WSNEnvironment(gym.Env):
         self.problem_generator = problem_generator
         self._node_features = node_features
         self._edge_features = edge_features
-        assert set(self._edge_features).issubset(SUPPORTED_EDGE_FEATURES)
 
         node_dim = sum([feature.dim for feature in self._node_features])
         # always has to include "possible" bit
-        edge_dim = 1 + len(self._edge_features)
+        edge_dim = 1 + sum([feature.dim for feature in self._edge_features])
         self.observation_space = GraphSpace(
             global_dim=1, node_dim=node_dim, edge_dim=edge_dim
         )

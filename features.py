@@ -13,21 +13,14 @@ def frac(a, b):
 class Feature:
     """A feature extractor"""
 
-    def __init__(self, name, dim):
+    def __init__(self, name, compute_fun, dim=1):
         self.name = name
         self.dim = dim
-
-
-class NodeFeature(Feature):
-    """A node feature extractor"""
-
-    def __init__(self, name, compute_fun, dim=1):
-        super().__init__("node_feature_" + name, dim)
         self.compute_fun = compute_fun
 
-    def compute(self, embedding: PartialEmbedding, enode: ENode):
-        """Extract a feature from a node"""
-        feature = self.compute_fun(embedding, enode)
+    def compute(self, *args, **kwargs):
+        """Extract a feature"""
+        feature = self.compute_fun(*args, **kwargs)
 
         # always return an iterable
         if not hasattr(feature, "__len__"):
@@ -38,6 +31,20 @@ class NodeFeature(Feature):
 
         assert len(feature) == self.dim
         return feature
+
+
+class NodeFeature(Feature):
+    """A node feature extractor"""
+
+    def __init__(self, name, compute_fun, dim=1):
+        super().__init__("node_feature_" + name, compute_fun, dim)
+
+
+class EdgeFeature(Feature):
+    """An edge feature extractor"""
+
+    def __init__(self, name, compute_fun, dim=1):
+        super().__init__("edge_feature_" + name, compute_fun, dim)
 
 
 def _embeddable_after(embedding: PartialEmbedding, enode: ENode):
@@ -81,4 +88,37 @@ SUPPORTED_NODE_FEATURES = [
         ),
     ),
     NodeFeature("embeddable_after", _embeddable_after),
+]
+
+
+def _is_broadcast(embedding, source, _target, timeslot, _edge_data):
+    for (other_so, _other_ta) in embedding.taken_edges_in[timeslot]:
+        if other_so.block == source.block and other_so.node == source.node:
+            return True
+    return False
+
+
+SUPPORTED_EDGE_FEATURES = [
+    EdgeFeature("timeslot", lambda emb, u, v, t, d: t),
+    EdgeFeature("chosen", lambda emb, u, v, t, d: d["chosen"]),
+    EdgeFeature(
+        "capacity",
+        lambda emb, u, v, t, d: emb.known_capacity(u.node, v.node, t),
+    ),
+    EdgeFeature(
+        "additional_timeslot", lambda emb, u, v, t, d: t >= emb.used_timeslots
+    ),
+    EdgeFeature(
+        "datarate_requirement",
+        lambda emb, u, v, t, d: t >= emb.overlay.datarate(u.block),
+    ),
+    EdgeFeature(
+        "datarate_fraction",
+        lambda emb, u, v, t, d: t
+        >= frac(
+            emb.overlay.datarate(u.block),
+            emb.known_capacity(u.node, v.node, t),
+        ),
+    ),
+    EdgeFeature("is_broadcast", _is_broadcast),
 ]

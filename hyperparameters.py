@@ -3,8 +3,7 @@
 import math
 import numpy as np
 import generator as g
-from gym_environment import SUPPORTED_EDGE_FEATURES
-from features import SUPPORTED_NODE_FEATURES
+from features import SUPPORTED_NODE_FEATURES, SUPPORTED_EDGE_FEATURES
 
 # reproducibility
 STATE = np.random.RandomState(42)
