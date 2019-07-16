@@ -28,11 +28,11 @@ def test_features():
         infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)]
     )
 
-    _eso1 = ENode(bso1, nso1)
+    eso1 = ENode(bso1, nso1)
     _eso2 = ENode(bso2, nso2)
     ein = ENode(bin_, nsi)
     _esi = ENode(bsi, nsi)
-    _erelay = ENode(bso1, nso2, bin_)
+    erelay = ENode(bso1, nso2, bin_)
 
     feature_dict = features_by_name()
 
@@ -42,3 +42,6 @@ def test_features():
         )
 
     assert node_feature("pos", ein) == (2, 0)  # pos of nsi
+    assert node_feature("relay", erelay) == (1.0,)
+    assert node_feature("relay", eso1) == (0.0,)
+    assert node_feature("relay", ein) == (0.0,)
