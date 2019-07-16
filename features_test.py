@@ -65,6 +65,7 @@ def test_features():
     feature_dict = features_by_name()
 
     def node_feature(name, node):
+        assert node in embedding.nodes()
         return tuple(
             feature_dict["node_" + name].process_node(embedding, node)
         )
@@ -117,6 +118,7 @@ def test_features():
     assert node_feature("options_lost", ENode(bin3, nso2))[0] == 1
 
     def edge_feature(name, u, v, t):
+        assert (u, v, t) in embedding.graph.edges(keys=True)
         return tuple(
             feature_dict["edge_" + name].process_edge(embedding, u, v, t)
         )
