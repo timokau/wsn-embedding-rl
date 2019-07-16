@@ -86,21 +86,6 @@ class EdgeFeature(Feature):
         )
 
 
-def _embeddable_after(embedding: PartialEmbedding, enode: ENode):
-    weight = embedding.overlay.requirement(enode.block)
-    remaining = embedding.remaining_capacity(enode.node)
-    embedded = set(embedding.taken_embeddings.keys()).union([enode.block])
-    options = set(embedding.overlay.blocks()).difference(embedded)
-    remaining_after = remaining - weight
-    embeddable = {
-        option
-        for option in options
-        if embedding.overlay.requirement(option) < remaining_after
-    }
-    nropt = len(options)
-    return len(embeddable) / nropt if nropt > 0 else 1
-
-
 def _is_broadcast(embedding, source, _target, timeslot, _edge_data):
     for (other_so, _other_ta) in embedding.taken_edges_in[timeslot]:
         if other_so.block == source.block and other_so.node == source.node:
@@ -113,6 +98,32 @@ def _remaining_capacity_before_chosen(emb, enode):
     if emb.graph.nodes[enode]["chosen"]:
         remaining += emb.overlay.requirement(enode.block)
     return remaining
+
+
+def _options_lost(embedding: PartialEmbedding, enode: ENode):
+    weight = embedding.overlay.requirement(enode.block)
+    remaining = _remaining_capacity_before_chosen(embedding, enode)
+
+    not_yet_embedded = set(embedding.overlay.blocks()).difference(
+        embedding.taken_embeddings.keys()
+    )
+
+    # assuming the node was chosen
+    not_yet_embedded = not_yet_embedded.difference({enode.block})
+
+    options_before = {
+        block
+        for block in not_yet_embedded
+        if embedding.overlay.requirement(block) < remaining
+    }
+
+    remaining_after = remaining - weight
+    options_after = {
+        block
+        for block in not_yet_embedded
+        if embedding.overlay.requirement(block) < remaining_after
+    }
+    return len(options_before) - len(options_after)
 
 
 SUPPORTED_FEATURES = [
@@ -138,7 +149,7 @@ SUPPORTED_FEATURES = [
             _remaining_capacity_before_chosen(emb, enode),
         ),
     ),
-    NodeFeature("embeddable_after", _embeddable_after),
+    NodeFeature("options_lost", _options_lost),
     EdgeFeature("timeslot", lambda emb, u, v, t, d: t),
     EdgeFeature("chosen", lambda emb, u, v, t, d: d["chosen"]),
     EdgeFeature(

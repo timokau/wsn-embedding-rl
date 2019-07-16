@@ -34,12 +34,17 @@ def test_features():
     bso2 = overlay.add_source(name="bso2", datarate=5, requirement=2)
     bin1 = overlay.add_intermediate(name="bin1", datarate=5, requirement=3)
     bin2 = overlay.add_intermediate(name="bin2", datarate=5, requirement=0)
+    bin3 = overlay.add_intermediate(name="bin3", datarate=42, requirement=0.7)
+    bin4 = overlay.add_intermediate(name="bin4", datarate=0, requirement=0.2)
     bsi = overlay.set_sink(name="bsi", datarate=5, requirement=4)
     overlay.add_link(bso1, bin1)
     overlay.add_link(bso1, bin2)
     overlay.add_link(bin1, bsi)
     overlay.add_link(bin2, bsi)
     overlay.add_link(bso2, bsi)
+    overlay.add_link(bso2, bin3)
+    overlay.add_link(bin3, bin4)
+    overlay.add_link(bin4, bsi)
 
     embedding = PartialEmbedding(
         infra, overlay, source_mapping=[(bso1, nso1), (bso2, nso2)]
@@ -96,3 +101,15 @@ def test_features():
     assert node_feature("compute_fraction", eso1)[0] == approx(1 / 1.5)
     assert node_feature("compute_fraction", esi)[0] == 0  # /infty
     assert node_feature("compute_fraction", erelay)[0] == approx(0)
+
+    # capacity inf can always embed everything
+    assert node_feature("options_lost", esi)[0] == 0
+    # has remaining capacity .5 after, can embed bin2 or bin4; before
+    # also bin4
+    assert node_feature("options_lost", eso1)[0] == 1
+    # has remaining capacity .8 after, can embed bin2 or bin3 (just as
+    # before)
+    assert node_feature("options_lost", eso2)[0] == 0
+    # remaining capacity of .1 after, can only embed bin2 (before also
+    # bin4)
+    assert node_feature("options_lost", ENode(bin3, nso2))[0] == 1
