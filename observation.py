@@ -19,15 +19,14 @@ def frac(a, b):
 class ObservationBuilder:
     """Build a feature graph from a partial embedding"""
 
-    def __init__(self, node_features, edge_features):
-        self._node_features = node_features
-        self._edge_features = edge_features
+    def __init__(self, features):
+        self._features = features
 
     def extract_node_features(self, embedding: PartialEmbedding, enode: ENode):
         """Build feature array for a single enode"""
         features = []
-        for node_feature in self._node_features:
-            features.extend(node_feature.process_node(embedding, enode))
+        for feature in self._features:
+            features.extend(feature.process_node(embedding, enode))
         return features
 
     def extract_edge_features(
@@ -44,9 +43,9 @@ class ObservationBuilder:
         )
         features = [float(possible)]
 
-        for edge_feature in self._edge_features:
+        for feature in self._features:
             features.extend(
-                edge_feature.process_edge(
+                feature.process_edge(
                     embedding, source, target, timeslot, edge_data
                 )
             )

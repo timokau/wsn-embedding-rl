@@ -54,15 +54,13 @@ def run_training(
     rl_seed,
     experiment_name,
     prioritized,
-    node_features,
-    edge_features,
+    features,
     generator_args,
 ):
     """Trains the agent with the given hyperparameters"""
     parallel_gen = ParallelGenerator(Generator(**generator_args), seedgen)
     env = gym_environment.WSNEnvironment(
-        node_features=node_features,
-        edge_features=edge_features,
+        features=features,
         early_exit_factor=early_exit_factor,
         seedgen=seedgen,
         problem_generator=parallel_gen.new_instance,
@@ -74,7 +72,7 @@ def run_training(
     logger.configure(dir=logdir, format_strs=["stdout", "csv", "tensorboard"])
 
     with open(f"{logdir}/config.pkl", "wb") as config_file:
-        dill.dump([node_features, edge_features], config_file, protocol=4)
+        dill.dump(features, config_file, protocol=4)
 
     # needs to be lambda since the scope at constructor time is used
     # pylint: disable=unnecessary-lambda

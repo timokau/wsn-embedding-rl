@@ -3,7 +3,7 @@
 import math
 import numpy as np
 import generator as g
-from features import SUPPORTED_NODE_FEATURES, SUPPORTED_EDGE_FEATURES
+from features import SUPPORTED_FEATURES
 
 # reproducibility
 STATE = np.random.RandomState(42)
@@ -35,8 +35,7 @@ DEFAULT = {
     "seedgen": lambda: STATE.randint(0, 2 ** 32),
     "experiment_name": "default",
     "prioritized": True,
-    "node_features": SUPPORTED_NODE_FEATURES,
-    "edge_features": SUPPORTED_EDGE_FEATURES,
+    "features": SUPPORTED_FEATURES,
     "generator_args": GENERATOR_DEFAULTS,
     "exploration_fraction": 0.1,
     "rl_seed": STATE.randint(0, 2 ** 32),

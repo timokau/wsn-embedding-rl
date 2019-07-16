@@ -70,22 +70,14 @@ class WSNEnvironment(gym.Env):
     # pylint: disable=too-many-instance-attributes
 
     def __init__(
-        self,
-        problem_generator,
-        node_features,
-        edge_features,
-        early_exit_factor,
-        seedgen,
+        self, problem_generator, features, early_exit_factor, seedgen
     ):
         self.problem_generator = problem_generator
-        self._node_features = node_features
-        self._edge_features = edge_features
+        self._features = features
 
-        node_dim = sum([feature.node_dim for feature in self._node_features])
+        node_dim = sum([feature.node_dim for feature in self._features])
         # always has to include "possible" bit
-        edge_dim = 1 + sum(
-            [feature.edge_dim for feature in self._edge_features]
-        )
+        edge_dim = 1 + sum([feature.edge_dim for feature in self._features])
         self.observation_space = GraphSpace(
             global_dim=1, node_dim=node_dim, edge_dim=edge_dim
         )
@@ -94,10 +86,9 @@ class WSNEnvironment(gym.Env):
         self.early_exit_factor = early_exit_factor
 
     def _get_observation(self):
-        graph = ObservationBuilder(
-            edge_features=self._edge_features,
-            node_features=self._node_features,
-        ).get_observation(self.env)
+        graph = ObservationBuilder(features=self._features).get_observation(
+            self.env
+        )
 
         gt = utils_np.networkxs_to_graphs_tuple([graph])
 

@@ -101,7 +101,14 @@ def _embeddable_after(embedding: PartialEmbedding, enode: ENode):
     return len(embeddable) / nropt if nropt > 0 else 1
 
 
-SUPPORTED_NODE_FEATURES = [
+def _is_broadcast(embedding, source, _target, timeslot, _edge_data):
+    for (other_so, _other_ta) in embedding.taken_edges_in[timeslot]:
+        if other_so.block == source.block and other_so.node == source.node:
+            return True
+    return False
+
+
+SUPPORTED_FEATURES = [
     NodeFeature(
         "pos",
         lambda emb, enode: emb.infra.graph.node[enode.node]["pos"],
@@ -127,17 +134,6 @@ SUPPORTED_NODE_FEATURES = [
         ),
     ),
     NodeFeature("embeddable_after", _embeddable_after),
-]
-
-
-def _is_broadcast(embedding, source, _target, timeslot, _edge_data):
-    for (other_so, _other_ta) in embedding.taken_edges_in[timeslot]:
-        if other_so.block == source.block and other_so.node == source.node:
-            return True
-    return False
-
-
-SUPPORTED_EDGE_FEATURES = [
     EdgeFeature("timeslot", lambda emb, u, v, t, d: t),
     EdgeFeature("chosen", lambda emb, u, v, t, d: d["chosen"]),
     EdgeFeature(
