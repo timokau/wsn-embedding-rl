@@ -124,3 +124,6 @@ def test_features():
 
     assert edge_feature("chosen", eso1, erelay, 0)[0] == 1
     assert edge_feature("chosen", eso2, esi, 2)[0] == 0
+
+    assert edge_feature("additional_timeslot", eso1, erelay, 0)[0] == 0
+    assert edge_feature("additional_timeslot", eso2, esi, 2)[0] == 1
