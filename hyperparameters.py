@@ -30,7 +30,7 @@ DEFAULT_FEATURES = [
 ]
 
 DEFAULT = {
-    "learnsteps": 100000,
+    "learnsteps": 20000,
     "train_freq": 1,
     "batch_size": 32,
     "early_exit_factor": 1.5,
@@ -42,6 +42,6 @@ DEFAULT = {
     "prioritized": True,
     "features": DEFAULT_FEATURES,
     "generator_args": GENERATOR_DEFAULTS,
-    "exploration_fraction": 0.1,
+    "exploration_fraction": 0.5,
     "rl_seed": STATE.randint(0, 2 ** 32),
 }
