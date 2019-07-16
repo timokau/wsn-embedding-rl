@@ -3,6 +3,8 @@
 # Tests are verbose.
 # pylint: disable=too-many-statements
 
+import math
+
 import numpy as np
 from pytest import approx
 
@@ -31,7 +33,7 @@ def test_features():
 
     overlay = OverlayNetwork()
     bso1 = overlay.add_source(name="bso1", datarate=5, requirement=1)
-    bso2 = overlay.add_source(name="bso2", datarate=5, requirement=2)
+    bso2 = overlay.add_source(name="bso2", datarate=8, requirement=2)
     bin1 = overlay.add_intermediate(name="bin1", datarate=5, requirement=3)
     bin2 = overlay.add_intermediate(name="bin2", datarate=5, requirement=0)
     bin3 = overlay.add_intermediate(name="bin3", datarate=42, requirement=0.7)
@@ -132,3 +134,19 @@ def test_features():
         5
     )
     assert edge_feature("datarate_requirement", erelay, ein, 1)[0] == approx(5)
+
+    # Capacity if nothing else is sending (which we're assuming, since actually
+    # only nso1 is sending and we're ignoring the current edge)
+    sinr = infra.sinr(eso1.node, erelay.node, senders=frozenset())
+    capacity = 1 * math.log(1 + 10 ** (sinr / 10), 2)
+    assert edge_feature("datarate_fraction", eso1, erelay, 0)[0] == approx(
+        5 / capacity
+    )
+    # in this case there actually  is nothing currently sending
+    sinr = infra.sinr(eso2.node, esi.node, senders=frozenset())
+    capacity = 1 * math.log(1 + 10 ** (sinr / 10), 2)
+    assert edge_feature("datarate_fraction", eso2, esi, 2)[0] == approx(
+        8 / capacity
+    )
+    # this is an edge within a node, nothing is actually sent
+    assert edge_feature("datarate_fraction", ein, esi, 2)[0] == 0
