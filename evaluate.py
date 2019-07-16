@@ -5,10 +5,20 @@ import re
 import csv
 import time
 from collections import defaultdict
+
 import numpy as np
 from scipy import stats
+import dill
+
 import gym_environment
 import marvelo_adapter
+
+
+def load_config_from_file(name):
+    """Loads an experiment config from file"""
+    with open(name, "rb") as config_file:
+        (node_features, edge_features) = dill.load(config_file)
+    return (node_features, edge_features)
 
 
 def load_agent_from_file(name):
@@ -24,11 +34,8 @@ def load_agent_from_file(name):
     return act
 
 
-def play_episode(act, embedding):
+def play_episode(act, env):
     """Play an entire episode and report the reward"""
-    env = gym_environment.WSNEnvironment(
-        problem_generator=lambda: (embedding, None)
-    )
     obs = env.reset()
     total_reward = 0
     before = time.time()
@@ -46,13 +53,23 @@ def play_episode(act, embedding):
 def compare_marvelo_with_agent(agent_file, marvelo_dir="marvelo_data"):
     """Runs a comparison of the MARVELO results against our agent"""
     act = load_agent_from_file(agent_file)
+    config_location = os.path.join(os.path.dirname(agent_file), "config.pkl")
+    (node_features, edge_features) = load_config_from_file(config_location)
     marvelo_results = marvelo_adapter.load_from_dir(marvelo_dir)
     results = []
     for (embedding, marvelo_result, info) in marvelo_results:
         if embedding is None:
             continue
         (nodes, blocks, seed) = info
-        (agent_reward, agent_ts, elapsed) = play_episode(act, embedding)
+        env = gym_environment.WSNEnvironment(
+            # pylint: disable=cell-var-from-loop
+            problem_generator=lambda: (embedding, None),
+            node_features=node_features,
+            edge_features=edge_features,
+            early_exit_factor=np.infty,
+            seedgen=None,
+        )
+        (agent_reward, agent_ts, elapsed) = play_episode(act, env)
         print(
             f"MARVELO: {marvelo_result}, Agent: {agent_ts}, ({agent_reward})"
         )

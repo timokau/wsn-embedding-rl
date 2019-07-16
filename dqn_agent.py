@@ -9,6 +9,7 @@ import datetime
 from baselines import logger
 from baselines.deepq import learn
 from networkx.drawing.nx_pydot import write_dot
+import dill
 
 from q_network import EdgeQNetwork
 import gym_environment
@@ -53,23 +54,15 @@ def run_training(
     rl_seed,
     experiment_name,
     prioritized,
-    node_feat_whitelist,
-    node_feat_blacklist,
-    edge_feat_whitelist,
-    edge_feat_blacklist,
+    node_features,
+    edge_features,
     generator_args,
 ):
     """Trains the agent with the given hyperparameters"""
-    assert frozenset(node_feat_blacklist).issubset(node_feat_whitelist)
-    assert frozenset(edge_feat_blacklist).issubset(edge_feat_whitelist)
-
-    node_feat = frozenset(node_feat_whitelist).difference(node_feat_blacklist)
-    edge_feat = frozenset(edge_feat_whitelist).difference(edge_feat_blacklist)
-
     parallel_gen = ParallelGenerator(Generator(**generator_args), seedgen)
     env = gym_environment.WSNEnvironment(
-        node_features=node_feat,
-        edge_features=edge_feat,
+        node_features=node_features,
+        edge_features=edge_features,
         early_exit_factor=early_exit_factor,
         seedgen=seedgen,
         problem_generator=parallel_gen.new_instance,
@@ -77,10 +70,11 @@ def run_training(
 
     git_label = _git_describe()
     time_label = datetime.datetime.now().isoformat()
-    logger.configure(
-        dir=f"logs/{time_label}-{git_label}-{experiment_name}",
-        format_strs=["stdout", "csv", "tensorboard"],
-    )
+    logdir = f"logs/{time_label}-{git_label}-{experiment_name}"
+    logger.configure(dir=logdir, format_strs=["stdout", "csv", "tensorboard"])
+
+    with open(f"{logdir}/config.pkl", "wb") as config_file:
+        dill.dump([node_features, edge_features], config_file, protocol=4)
 
     # needs to be lambda since the scope at constructor time is used
     # pylint: disable=unnecessary-lambda

@@ -2,8 +2,6 @@
 
 from embedding import PartialEmbedding, ENode
 
-SUPPORTED_NODE_FEATURES = set()
-
 
 def frac(a, b):
     """Regular fraction, but result is 0 if a = b = 0"""
@@ -15,140 +13,72 @@ def frac(a, b):
 class Feature:
     """A feature extractor"""
 
-    def __init__(self, dim, name):
-        self.dim = dim
+    def __init__(self, name, dim):
         self.name = name
-
-    def __hash__(self):
-        return hash(self.name)
-
-    def __eq__(self, other):
-        return hash(self) == hash(other)
+        self.dim = dim
 
 
 class NodeFeature(Feature):
     """A node feature extractor"""
 
-    def __init__(self, dim, name):
-        super().__init__(dim, "node_feature_" + name)
+    def __init__(self, name, compute_fun, dim=1):
+        super().__init__("node_feature_" + name, dim)
+        self.compute_fun = compute_fun
 
     def compute(self, embedding: PartialEmbedding, enode: ENode):
         """Extract a feature from a node"""
-        feature = self._compute(embedding, enode)
+        feature = self.compute_fun(embedding, enode)
 
+        # always return an iterable
         if not hasattr(feature, "__len__"):
             feature = (feature,)
 
+        # transparently convert bools etc. to float
         feature = [float(value) for value in feature]
 
         assert len(feature) == self.dim
         return feature
 
-    def _compute(self, embedding: PartialEmbedding, enode: ENode):
-        raise NotImplementedError()
+
+def _embeddable_after(embedding: PartialEmbedding, enode: ENode):
+    weight = embedding.overlay.requirement(enode.block)
+    remaining = embedding.remaining_capacity(enode.node)
+    embedded = set(embedding.taken_embeddings.keys()).union([enode.block])
+    options = set(embedding.overlay.blocks()).difference(embedded)
+    remaining_after = remaining - weight
+    embeddable = {
+        option
+        for option in options
+        if embedding.overlay.requirement(option) < remaining_after
+    }
+    nropt = len(options)
+    return len(embeddable) / nropt if nropt > 0 else 1
 
 
-class PosFeature(NodeFeature):
-    """The position of a node"""
-
-    def __init__(self):
-        super().__init__(2, "pos")
-
-    def _compute(self, embedding: PartialEmbedding, enode: ENode):
-        return embedding.infra.graph.node[enode.node]["pos"]
-
-
-SUPPORTED_NODE_FEATURES.add(PosFeature())
-
-
-class NodeIsRelayFeature(NodeFeature):
-    """Whether or not a node is a relay"""
-
-    def __init__(self):
-        super().__init__(1, "relay")
-
-    def _compute(self, embedding: PartialEmbedding, enode: ENode):
-        return enode.relay
-
-
-SUPPORTED_NODE_FEATURES.add(NodeIsRelayFeature())
-
-
-class NodeIsSinkFeature(NodeFeature):
-    """Whether or not a node is the sink"""
-
-    def __init__(self):
-        super().__init__(1, "sink")
-
-    def _compute(self, embedding: PartialEmbedding, enode: ENode):
-        return enode.node == embedding.infra.sink
-
-
-SUPPORTED_NODE_FEATURES.add(NodeIsSinkFeature())
-
-
-class NodeRemainingCapacityFeature(NodeFeature):
-    """Whether or not a node is the sink"""
-
-    def __init__(self):
-        super().__init__(1, "remaining_capacity")
-
-    def _compute(self, embedding: PartialEmbedding, enode: ENode):
-        weight = embedding.overlay.requirement(enode.block)
-        remaining = embedding.remaining_capacity(enode.node)
-        return frac(weight, remaining)
-
-
-SUPPORTED_NODE_FEATURES.add(NodeRemainingCapacityFeature())
-
-
-class NodeWeightFeature(NodeFeature):
-    """Whether or not a node is the sink"""
-
-    def __init__(self):
-        super().__init__(1, "weight")
-
-    def _compute(self, embedding: PartialEmbedding, enode: ENode):
-        return embedding.overlay.requirement(enode.block)
-
-
-SUPPORTED_NODE_FEATURES.add(NodeWeightFeature())
-
-
-class NodeComputeFractionFeature(NodeFeature):
-    """Whether or not a node is the sink"""
-
-    def __init__(self):
-        super().__init__(1, "compute_fraction")
-
-    def _compute(self, embedding: PartialEmbedding, enode: ENode):
-        weight = embedding.overlay.requirement(enode.block)
-        remaining = embedding.remaining_capacity(enode.node)
-        return frac(weight, remaining)
-
-
-SUPPORTED_NODE_FEATURES.add(NodeComputeFractionFeature())
-
-
-class NodeEmbeddableAfterFeature(NodeFeature):
-    """Whether or not a node is the sink"""
-
-    def __init__(self):
-        super().__init__(1, "embeddable_after")
-
-    def _compute(self, embedding: PartialEmbedding, enode: ENode):
-        weight = embedding.overlay.requirement(enode.block)
-        remaining = embedding.remaining_capacity(enode.node)
-        embedded = set(embedding.taken_embeddings.keys()).union([enode.block])
-        options = set(embedding.overlay.blocks()).difference(embedded)
-        remaining_after = remaining - weight
-        embeddable = {
-            option
-            for option in options
-            if embedding.overlay.requirement(option) < remaining_after
-        }
-        nropt = len(options)
-        return len(embeddable) / nropt if nropt > 0 else 1
-
-
-SUPPORTED_NODE_FEATURES = frozenset(SUPPORTED_NODE_FEATURES)
+SUPPORTED_NODE_FEATURES = [
+    NodeFeature(
+        "pos",
+        lambda emb, enode: emb.infra.graph.node[enode.node]["pos"],
+        dim=2,
+    ),
+    NodeFeature("relay", lambda emb, enode: enode.relay),
+    NodeFeature("sink", lambda emb, enode: enode.node == emb.infra.sink),
+    NodeFeature(
+        "remaining_capacity",
+        lambda emb, enode: frac(
+            emb.overlay.requirement(enode.block),
+            emb.remaining_capacity(enode.node),
+        ),
+    ),
+    NodeFeature(
+        "weight", lambda emb, enode: emb.overlay.requirement(enode.block)
+    ),
+    NodeFeature(
+        "compute_fraction",
+        lambda emb, enode: frac(
+            emb.overlay.requirement(enode.block),
+            emb.remaining_capacity(enode.node),
+        ),
+    ),
+    NodeFeature("embeddable_after", _embeddable_after),
+]

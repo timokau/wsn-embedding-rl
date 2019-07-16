@@ -1,6 +1,5 @@
 """Gym environment wrapper for a Wireless Sensor Network"""
 
-import numpy as np
 import tensorflow as tf
 import gym
 
@@ -8,10 +7,6 @@ from graph_nets import utils_np, utils_tf
 from graph_nets.graphs import GraphsTuple
 
 from observation import ObservationBuilder, TIMESLOT_IDX, POSSIBLE_IDX
-
-# this is a frozenset, pylint just isn't clever enough to realize that
-# pylint: disable=dangerous-default-value
-from features import SUPPORTED_NODE_FEATURES
 
 
 class GraphSpace(gym.spaces.Space):
@@ -90,15 +85,14 @@ class WSNEnvironment(gym.Env):
     def __init__(
         self,
         problem_generator,
-        node_features=SUPPORTED_NODE_FEATURES,
-        edge_features=SUPPORTED_EDGE_FEATURES,
-        early_exit_factor=np.infty,
-        seedgen=lambda: np.random.randint(0, 2 ** 32),
+        node_features,
+        edge_features,
+        early_exit_factor,
+        seedgen,
     ):
         self.problem_generator = problem_generator
         self._node_features = node_features
         self._edge_features = edge_features
-        assert set(self._node_features).issubset(SUPPORTED_NODE_FEATURES)
         assert set(self._edge_features).issubset(SUPPORTED_EDGE_FEATURES)
 
         node_dim = sum([feature.dim for feature in self._node_features])
