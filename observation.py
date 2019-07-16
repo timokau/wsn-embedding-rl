@@ -35,19 +35,17 @@ class ObservationBuilder:
         source: ENode,
         target: ENode,
         timeslot: int,
-        edge_data,
     ):
         """Build feature array for a single edge"""
         possible = (
-            not edge_data["chosen"] and embedding.graph.nodes[source]["chosen"]
+            not embedding.graph.edges[(source, target, timeslot)]["chosen"]
+            and embedding.graph.nodes[source]["chosen"]
         )
         features = [float(possible)]
 
         for feature in self._features:
             features.extend(
-                feature.process_edge(
-                    embedding, source, target, timeslot, edge_data
-                )
+                feature.process_edge(embedding, source, target, timeslot)
             )
 
         assert features[POSSIBLE_IDX] == float(possible)
@@ -74,12 +72,12 @@ class ObservationBuilder:
             )
 
         # add the edges
-        for (u, v, k, d) in embedding.graph.edges(data=True, keys=True):
+        for (u, v, k) in embedding.graph.edges(keys=True):
             input_graph.add_edge(
                 node_to_index[u],
                 node_to_index[v],
                 k,
-                features=self.extract_edge_features(embedding, u, v, k, d),
+                features=self.extract_edge_features(embedding, u, v, k),
             )
 
         # no globals in input

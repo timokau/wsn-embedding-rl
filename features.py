@@ -36,11 +36,10 @@ class Feature:
         source: ENode,
         target: ENode,
         timeslot: int,
-        edge_data,
     ):
         """Extracts a feature from an edge"""
         feature = (
-            self.edge_fun(embedding, source, target, timeslot, edge_data)
+            self.edge_fun(embedding, source, target, timeslot)
             if self.edge_fun is not None
             else []
         )
@@ -86,7 +85,7 @@ class EdgeFeature(Feature):
         )
 
 
-def _is_broadcast(embedding, source, _target, timeslot, _edge_data):
+def _is_broadcast(embedding, source, _target, timeslot):
     for (other_so, _other_ta) in embedding.taken_edges_in[timeslot]:
         if other_so.block == source.block and other_so.node == source.node:
             return True
@@ -150,22 +149,23 @@ SUPPORTED_FEATURES = [
         ),
     ),
     NodeFeature("options_lost", _options_lost),
-    EdgeFeature("timeslot", lambda emb, u, v, t, d: t),
-    EdgeFeature("chosen", lambda emb, u, v, t, d: d["chosen"]),
+    EdgeFeature("timeslot", lambda emb, u, v, t: t),
     EdgeFeature(
-        "capacity",
-        lambda emb, u, v, t, d: emb.known_capacity(u.node, v.node, t),
+        "chosen", lambda emb, u, v, t: emb.graph.edges[u, v, t]["chosen"]
     ),
     EdgeFeature(
-        "additional_timeslot", lambda emb, u, v, t, d: t >= emb.used_timeslots
+        "capacity", lambda emb, u, v, t: emb.known_capacity(u.node, v.node, t)
+    ),
+    EdgeFeature(
+        "additional_timeslot", lambda emb, u, v, t: t >= emb.used_timeslots
     ),
     EdgeFeature(
         "datarate_requirement",
-        lambda emb, u, v, t, d: t >= emb.overlay.datarate(u.block),
+        lambda emb, u, v, t: t >= emb.overlay.datarate(u.block),
     ),
     EdgeFeature(
         "datarate_fraction",
-        lambda emb, u, v, t, d: t
+        lambda emb, u, v, t: t
         >= frac(
             emb.overlay.datarate(u.block),
             emb.known_capacity(u.node, v.node, t),
