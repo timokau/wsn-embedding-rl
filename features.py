@@ -122,10 +122,7 @@ SUPPORTED_FEATURES = [
     ),
     NodeFeature(
         "remaining_capacity",
-        lambda emb, enode: frac(
-            emb.overlay.requirement(enode.block),
-            emb.remaining_capacity(enode.node),
-        ),
+        lambda emb, enode: emb.remaining_capacity(enode.node),
     ),
     NodeFeature(
         "weight", lambda emb, enode: emb.overlay.requirement(enode.block)
