@@ -115,7 +115,11 @@ SUPPORTED_FEATURES = [
         dim=2,
     ),
     NodeFeature("relay", lambda emb, enode: enode.relay),
-    NodeFeature("sink", lambda emb, enode: enode.node == emb.infra.sink),
+    NodeFeature(
+        "sink",
+        lambda emb, enode: enode.node == emb.infra.sink
+        and enode.block == emb.overlay.sink,
+    ),
     NodeFeature(
         "remaining_capacity",
         lambda emb, enode: frac(

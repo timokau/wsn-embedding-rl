@@ -29,9 +29,9 @@ def test_features():
     )
 
     eso1 = ENode(bso1, nso1)
-    _eso2 = ENode(bso2, nso2)
+    eso2 = ENode(bso2, nso2)
     ein = ENode(bin_, nsi)
-    _esi = ENode(bsi, nsi)
+    esi = ENode(bsi, nsi)
     erelay = ENode(bso1, nso2, bin_)
 
     feature_dict = features_by_name()
@@ -42,6 +42,16 @@ def test_features():
         )
 
     assert node_feature("pos", ein) == (2, 0)  # pos of nsi
+
     assert node_feature("relay", erelay) == (1.0,)
     assert node_feature("relay", eso1) == (0.0,)
     assert node_feature("relay", ein) == (0.0,)
+
+    assert node_feature("sink", eso2) == (0.0,)
+    assert node_feature("sink", ein) == (0.0,)
+    assert node_feature("sink", esi) == (1.0,)
+    num_sinks = 0
+    for node in embedding.nodes():
+        if node_feature("sink", node)[0] == 1.0:
+            num_sinks += 1
+    assert num_sinks == 1
