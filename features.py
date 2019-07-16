@@ -108,6 +108,13 @@ def _is_broadcast(embedding, source, _target, timeslot, _edge_data):
     return False
 
 
+def _remaining_capacity_before_chosen(emb, enode):
+    remaining = emb.remaining_capacity(enode.node)
+    if emb.graph.nodes[enode]["chosen"]:
+        remaining += emb.overlay.requirement(enode.block)
+    return remaining
+
+
 SUPPORTED_FEATURES = [
     NodeFeature(
         "pos",
@@ -120,10 +127,7 @@ SUPPORTED_FEATURES = [
         lambda emb, enode: enode.node == emb.infra.sink
         and enode.block == emb.overlay.sink,
     ),
-    NodeFeature(
-        "remaining_capacity",
-        lambda emb, enode: emb.remaining_capacity(enode.node),
-    ),
+    NodeFeature("remaining_capacity", _remaining_capacity_before_chosen),
     NodeFeature(
         "weight", lambda emb, enode: emb.overlay.requirement(enode.block)
     ),

@@ -75,10 +75,10 @@ def test_features():
             num_sinks += 1
     assert num_sinks == 1
 
-    # this is alway the current remaining capacity, so it differs when
-    # the node is already chosen
-    assert node_feature("remaining_capacity", eso1)[0] == approx(0.5)
-    assert node_feature("remaining_capacity", eso2)[0] == approx(0.8)
+    # this is always pretending the node isn't already chosen, so the
+    # requirement of the block in question is always exempt
+    assert node_feature("remaining_capacity", eso1)[0] == approx(1.5)
+    assert node_feature("remaining_capacity", eso2)[0] == approx(2.8)
     assert node_feature("remaining_capacity", esi)[0] == np.infty
     assert node_feature("remaining_capacity", erelay)[0] == approx(0)
     assert node_feature("remaining_capacity", ein)[0] == np.infty
