@@ -135,7 +135,7 @@ SUPPORTED_FEATURES = [
         "compute_fraction",
         lambda emb, enode: frac(
             emb.overlay.requirement(enode.block),
-            emb.remaining_capacity(enode.node),
+            _remaining_capacity_before_chosen(emb, enode),
         ),
     ),
     NodeFeature("embeddable_after", _embeddable_after),

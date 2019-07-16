@@ -1,5 +1,8 @@
 """Tests the feature extraction"""
 
+# Tests are verbose.
+# pylint: disable=too-many-statements
+
 import numpy as np
 from pytest import approx
 
@@ -87,3 +90,9 @@ def test_features():
     assert node_feature("weight", eso1)[0] == approx(1)
     assert node_feature("weight", esi)[0] == approx(4)
     assert node_feature("weight", erelay)[0] == approx(0)
+
+    # the block itself should not be counted if it is already embedded
+    # therefore, nso1 has a remaining capacity of 1.5 (instead of 0.5)
+    assert node_feature("compute_fraction", eso1)[0] == approx(1 / 1.5)
+    assert node_feature("compute_fraction", esi)[0] == 0  # /infty
+    assert node_feature("compute_fraction", erelay)[0] == approx(0)
