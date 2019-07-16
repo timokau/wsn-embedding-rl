@@ -113,3 +113,11 @@ def test_features():
     # remaining capacity of .1 after, can only embed bin2 (before also
     # bin4)
     assert node_feature("options_lost", ENode(bin3, nso2))[0] == 1
+
+    def edge_feature(name, u, v, t):
+        return tuple(
+            feature_dict["edge_" + name].process_edge(embedding, u, v, t)
+        )
+
+    assert edge_feature("timeslot", eso1, erelay, 0)[0] == 0
+    assert edge_feature("timeslot", eso2, esi, 2)[0] == 2
