@@ -3,7 +3,7 @@
 import math
 import numpy as np
 import generator as g
-from features import SUPPORTED_FEATURES
+from features import features_by_name
 
 # reproducibility
 STATE = np.random.RandomState(42)
@@ -24,6 +24,11 @@ GENERATOR_DEFAULTS = {
     "connection_choice": lambda r, a: r.choice(a),
 }
 
+DEFAULT_FEATURES = [
+    features_by_name()[name]
+    for name in ["node_relay", "edge_additional_timeslot"]
+]
+
 DEFAULT = {
     "learnsteps": 100000,
     "train_freq": 1,
@@ -35,7 +40,7 @@ DEFAULT = {
     "seedgen": lambda: STATE.randint(0, 2 ** 32),
     "experiment_name": "default",
     "prioritized": True,
-    "features": SUPPORTED_FEATURES,
+    "features": DEFAULT_FEATURES,
     "generator_args": GENERATOR_DEFAULTS,
     "exploration_fraction": 0.1,
     "rl_seed": STATE.randint(0, 2 ** 32),
