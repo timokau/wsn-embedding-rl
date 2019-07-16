@@ -129,6 +129,15 @@ def _options_lost(embedding: PartialEmbedding, enode: ENode):
     return len(options_before) - len(options_after)
 
 
+def _capacity(emb, u, v, t):
+    if u.node == v.node:
+        # If this is a loop, it has an effective capacity of infty. Its
+        # hard to learn with values of infinity though, so we just
+        # pretend the capacity perfectly matches the requirement.
+        return emb.overlay.requirement(u.acting_as)
+    return emb.known_capacity(u.node, v.node, t)
+
+
 SUPPORTED_FEATURES = [
     NodeFeature(
         "pos",
@@ -157,9 +166,7 @@ SUPPORTED_FEATURES = [
     EdgeFeature(
         "chosen", lambda emb, u, v, t: emb.graph.edges[u, v, t]["chosen"]
     ),
-    EdgeFeature(
-        "capacity", lambda emb, u, v, t: emb.known_capacity(u.node, v.node, t)
-    ),
+    EdgeFeature("capacity", _capacity),
     EdgeFeature(
         "additional_timeslot", lambda emb, u, v, t: t >= emb.used_timeslots
     ),

@@ -129,6 +129,10 @@ def test_features():
     assert edge_feature("chosen", eso1, erelay, 0)[0] == 1
     assert edge_feature("chosen", eso2, esi, 2)[0] == 0
 
+    assert edge_feature("capacity", eso2, esi, 2)[0] == approx(17.61, abs=0.1)
+    # loops are special-cased; pretend perfect match with requirement
+    assert edge_feature("capacity", ein, esi, 2)[0] == 3.0
+
     assert edge_feature("additional_timeslot", eso1, erelay, 0)[0] == 0
     assert edge_feature("additional_timeslot", eso2, esi, 2)[0] == 1
 
