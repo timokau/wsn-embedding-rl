@@ -27,7 +27,7 @@ class ObservationBuilder:
         """Build feature array for a single enode"""
         features = []
         for node_feature in self._node_features:
-            features.extend(node_feature.compute(embedding, enode))
+            features.extend(node_feature.process_node(embedding, enode))
         return features
 
     def extract_edge_features(
@@ -46,7 +46,7 @@ class ObservationBuilder:
 
         for edge_feature in self._edge_features:
             features.extend(
-                edge_feature.compute(
+                edge_feature.process_edge(
                     embedding, source, target, timeslot, edge_data
                 )
             )

@@ -10,26 +10,53 @@ def frac(a, b):
     return a / b
 
 
+def _postprocess_feature(feature):
+    """Make a feature compatible with graph tuples"""
+    # always return an iterable
+    if not hasattr(feature, "__len__"):
+        feature = (feature,)
+
+    # transparently convert bools etc. to float
+    return [float(value) for value in feature]
+
+
 class Feature:
     """A feature extractor"""
 
-    def __init__(self, name, compute_fun, dim=1):
+    def __init__(self, name, edge_fun, node_fun, edge_dim, node_dim):
         self.name = name
-        self.dim = dim
-        self.compute_fun = compute_fun
+        self.edge_dim = edge_dim
+        self.node_dim = node_dim
+        self.edge_fun = edge_fun
+        self.node_fun = node_fun
 
-    def compute(self, *args, **kwargs):
-        """Extract a feature"""
-        feature = self.compute_fun(*args, **kwargs)
+    def process_edge(
+        self,
+        embedding: PartialEmbedding,
+        source: ENode,
+        target: ENode,
+        timeslot: int,
+        edge_data,
+    ):
+        """Extracts a feature from an edge"""
+        feature = (
+            self.edge_fun(embedding, source, target, timeslot, edge_data)
+            if self.edge_fun is not None
+            else []
+        )
+        feature = _postprocess_feature(feature)
+        assert len(feature) == self.edge_dim
+        return feature
 
-        # always return an iterable
-        if not hasattr(feature, "__len__"):
-            feature = (feature,)
-
-        # transparently convert bools etc. to float
-        feature = [float(value) for value in feature]
-
-        assert len(feature) == self.dim
+    def process_node(self, embedding: PartialEmbedding, enode: ENode):
+        """Extracts a feature from a node"""
+        feature = (
+            self.node_fun(embedding, enode)
+            if self.node_fun is not None
+            else []
+        )
+        feature = _postprocess_feature(feature)
+        assert len(feature) == self.node_dim
         return feature
 
 
@@ -37,14 +64,26 @@ class NodeFeature(Feature):
     """A node feature extractor"""
 
     def __init__(self, name, compute_fun, dim=1):
-        super().__init__("node_feature_" + name, compute_fun, dim)
+        super().__init__(
+            "node_feature_" + name,
+            edge_dim=0,
+            edge_fun=None,
+            node_dim=dim,
+            node_fun=compute_fun,
+        )
 
 
 class EdgeFeature(Feature):
     """An edge feature extractor"""
 
     def __init__(self, name, compute_fun, dim=1):
-        super().__init__("edge_feature_" + name, compute_fun, dim)
+        super().__init__(
+            "edge_feature_" + name,
+            edge_dim=dim,
+            edge_fun=compute_fun,
+            node_dim=0,
+            node_fun=None,
+        )
 
 
 def _embeddable_after(embedding: PartialEmbedding, enode: ENode):
