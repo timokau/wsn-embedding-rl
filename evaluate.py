@@ -49,11 +49,8 @@ def play_episode(act, env):
             return (total_reward, env.env.used_timeslots, elapsed)
 
 
-def compare_marvelo_with_agent(agent_file, marvelo_dir="marvelo_data"):
+def compare_marvelo_with_agent(act, features, marvelo_dir="marvelo_data"):
     """Runs a comparison of the MARVELO results against our agent"""
-    act = load_agent_from_file(agent_file)
-    config_location = os.path.join(os.path.dirname(agent_file), "config.pkl")
-    features = load_config_from_file(config_location)
     marvelo_results = marvelo_adapter.load_from_dir(marvelo_dir)
     results = []
     for (embedding, marvelo_result, info) in marvelo_results:
@@ -67,24 +64,26 @@ def compare_marvelo_with_agent(agent_file, marvelo_dir="marvelo_data"):
             early_exit_factor=np.infty,
             seedgen=None,
         )
-        (agent_reward, agent_ts, elapsed) = play_episode(act, env)
-        print(
-            f"MARVELO: {marvelo_result}, Agent: {agent_ts}, ({agent_reward})"
-        )
+        (_agent_reward, agent_ts, elapsed) = play_episode(act, env)
         results.append(
             (nodes, blocks, seed, marvelo_result, agent_ts, elapsed)
         )
     return results
 
 
+def process_marvelo_results(results):
+    """Analyzes results of marvelo comparison"""
+    by_block = defaultdict(list)
+    for (nodes, blocks, _seed, marvelo_result, agent_ts, elapsed) in results:
+        gap = 100 * (agent_ts - marvelo_result) / marvelo_result
+        by_block[blocks].append((nodes, gap, elapsed))
+    return by_block
+
+
 def marvelo_results_to_csvs(results, dirname):
     """Writes marvelo results to tables as expected by pgfplots"""
     # pylint: disable=too-many-locals
-    by_block = defaultdict(list)
-    for (nodes, blocks, seed, marvelo_result, agent_ts, elapsed) in results:
-        by_block[blocks].append(
-            (nodes, seed, marvelo_result, agent_ts, elapsed)
-        )
+    by_block = process_marvelo_results(results)
 
     try:
         os.mkdir(dirname)
@@ -97,8 +96,7 @@ def marvelo_results_to_csvs(results, dirname):
         filename = f"{dirname}/marvelo_b{block}.csv"
         gaps = defaultdict(list)
         times = defaultdict(list)
-        for (nodes, seed, marvelo_result, agent_ts, elapsed) in block_results:
-            gap = 100 * (agent_ts - marvelo_result) / marvelo_result
+        for (nodes, gap, elapsed) in block_results:
             gaps[nodes].append(gap)
             all_gaps.append(gap)
             all_times.append(1000 * elapsed)
@@ -157,7 +155,11 @@ def main():
         model_file = find_latest_model_in_pwd()
     print(f"Evaluating {model_file}, saving results to {target_dir}")
 
-    marvelo_results_to_csvs(compare_marvelo_with_agent(model_file), target_dir)
+    config_location = os.path.join(os.path.dirname(model_file), "config.pkl")
+    features = load_config_from_file(config_location)
+    act = load_agent_from_file(model_file)
+    results = compare_marvelo_with_agent(act, features)
+    marvelo_results_to_csvs(results, target_dir)
 
 
 if __name__ == "__main__":

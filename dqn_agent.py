@@ -2,6 +2,7 @@
 
 import subprocess
 import datetime
+from functools import partial
 
 # needs this fork of baselines:
 # https://github.com/timokau/baselines/tree/graph_nets-deepq
@@ -10,12 +11,14 @@ from baselines import logger
 from baselines.deepq import learn
 from networkx.drawing.nx_pydot import write_dot
 import dill
+import numpy as np
 
 from q_network import EdgeQNetwork
 import gym_environment
 from observation import TIMESLOT_IDX, POSSIBLE_IDX
 from generator import Generator, ParallelGenerator
 from draw_embedding import succinct_representation
+import evaluate
 
 
 def save_episode_result_callback(lcl, _glb):
@@ -28,6 +31,22 @@ def save_episode_result_callback(lcl, _glb):
         succinct_representation(lcl["env"].env),
         f"{logger.get_dir()}/result-{episode}-{-total_reward}.dot",
     )
+
+
+def _eval_hook(act, log, features):
+    results = evaluate.compare_marvelo_with_agent(act, features)
+    results = evaluate.process_marvelo_results(results)
+    all_gaps = []
+    all_times = []
+    for blocks in results.keys():
+        gaps = [gap for (nodes, gap, elapsed) in results[blocks]]
+        times = [gap for (nodes, gap, elapsed) in results[blocks]]
+        log.record_tabular(f"marvelo b{blocks} gap", np.mean(gaps))
+        all_gaps.extend(gaps)
+        all_times.extend(times)
+    log.record_tabular(f"marvelo total gap", np.mean(all_gaps))
+    log.record_tabular(f"marvelo avg time", np.mean(times))
+    log.dump_tabular()
 
 
 def _git_describe():
@@ -99,6 +118,8 @@ def run_training(
         batch_size=batch_size,
         exploration_fraction=exploration_fraction,
         checkpoint_freq=1000,
+        eval_freq=1000,
+        eval_hook=partial(_eval_hook, features=features),
         seed=rl_seed,
         total_timesteps=learnsteps * train_freq,
         checkpoint_path=logger.get_dir(),
