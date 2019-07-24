@@ -37,6 +37,13 @@ DEFAULT_FEATURES = [
 
 DEFAULT = {
     "learnsteps": 30000,
+    "prioritized_replay_alpha": 0.6,
+    "prioritized_replay_beta0": 0.4,
+    "prioritized_replay_beta_iters": None,  # all steps
+    "prioritized_replay_eps": 1e-6,
+    "learning_starts": 1000,
+    "buffer_size": 50000,
+    "lr": 5e-4,
     "train_freq": 2,
     "batch_size": 32,
     "early_exit_factor": 1.5,

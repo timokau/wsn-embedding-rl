@@ -61,7 +61,7 @@ def _git_describe():
 
 
 def run_training(
-    # pylint: disable=too-many-arguments
+    # pylint: disable=too-many-arguments, too-many-locals
     learnsteps,
     train_freq,
     batch_size,
@@ -74,6 +74,13 @@ def run_training(
     rl_seed,
     experiment_name,
     prioritized,
+    prioritized_replay_alpha,
+    prioritized_replay_beta0,
+    prioritized_replay_beta_iters,
+    prioritized_replay_eps,
+    learning_starts,
+    buffer_size,
+    lr,
     features,
     generator_args,
 ):
@@ -113,10 +120,17 @@ def run_training(
         as_is=True,
         dueling=False,
         prioritized=prioritized,
+        prioritized_replay_alpha=prioritized_replay_alpha,
+        prioritized_replay_beta0=prioritized_replay_beta0,
+        prioritized_replay_beta_iters=prioritized_replay_beta_iters,
+        prioritized_replay_eps=prioritized_replay_eps,
         print_freq=1,
         train_freq=train_freq,
         batch_size=batch_size,
         exploration_fraction=exploration_fraction,
+        learning_starts=learning_starts,
+        buffer_size=buffer_size,
+        lr=lr,
         checkpoint_freq=1000,
         eval_freq=1000,
         eval_hook=partial(_eval_hook, features=features),
