@@ -1,5 +1,6 @@
 """Implements the exact constraints described in the paper. Pure, but slow."""
-from itertools import chain, combinations
+from itertools import chain, combinations, permutations, islice
+from functools import lru_cache
 from embedding import PartialEmbedding
 
 # This follows the naming and semantics of the paper as closely as
@@ -40,6 +41,11 @@ def powerset(iterable):
     return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
 
 
+def no(edge):
+    (n, _bs, _bt) = edge
+    return n
+
+
 def sb(edge):
     (_n, bs, _bt) = edge
     return bs
@@ -48,6 +54,54 @@ def sb(edge):
 def tb(edge):
     (_n, _bs, bt) = edge
     return bt
+
+
+@lru_cache(maxsize=2 ** 23)
+def _check_path_consistency(path):
+    # recursion for more caching
+    if len(path) == 0:
+        return False
+    if len(path) == 1:
+        return True
+
+    first_target = path[0][1]
+    second_source = path[1][0]
+    if first_target != second_source:
+        return False
+    return _check_path_consistency(path[1:])
+
+
+@lru_cache(maxsize=None)
+def _paths_for_subset(subset):
+    return {
+        permutation
+        for permutation in permutations(subset)
+        if _check_path_consistency(permutation)
+    }
+
+
+class WayTooBigException(Exception):
+    pass
+
+
+@lru_cache()
+def _paths(A):
+    print("Recomputing")
+    # doesn't get much more inefficient than this
+    result = set()
+
+    # take care not to OOM when counting the elements
+    subsets = len(list(islice(powerset(A), 2 ** 13)))
+    print(subsets)
+    if subsets > 2 ** 12:  # takes too long
+        raise WayTooBigException("Won't even try.")
+
+    for i, subset in enumerate(powerset(A)):
+        if i % 1000 == 0:
+            print(_check_path_consistency.cache_info())
+        result = result.union(_paths_for_subset(subset))
+    print("Done")
+    return result
 
 
 class Wrapper:
@@ -59,7 +113,7 @@ class Wrapper:
         self.L = embedding.overlay.graph.edges()
         self.S = embedding.overlay.sources
         self.bsink = embedding.overlay.sink
-        self.R = [
+        self.A = [
             (_enode_to_triple(source), _enode_to_triple(target), timeslot)
             for ((source, target), timeslot) in embedding.taken_edges.items()
         ]
@@ -75,129 +129,108 @@ class Wrapper:
     def W(self, b):
         return self.embedding.overlay.requirement(b)
 
-    def M(self, n, R):
-        return {bs for (n_, bs, bt) in self.Phat(R) if n == n_ and bs == bt}
+    def Phat(self, A):
+        enodes = set()
+        for (u, v, _t) in A:
+            enodes.add(u)
+            enodes.add(v)
 
-    def C(self, n):
-        return self.embedding.infra.capacity(n)
-
-    def is_in_vplace(self, n, bs, bt, R):
-        a = bs == bt
-        b = n in self.N
-        c = bs in self.B
-        d = sum(
-            [self.W(block) for block in self.M(n, R).union((bs,))]
-        ) <= self.C(n)
-        e = not self.placedElsewhere((n, bs, bt), R)
-        f = not exists_elem(
-            self.Phat(R),
-            lambda enode: enode[0] == n
-            and (sb(enode) == bs or tb(enode) == bt)
-            and sb(enode) != tb(enode),
-        )
-        result = a and b and c and d and e and f
-        return result
-
-    def is_in_vrelay(self, n, bs, bt, R):
-        return (
-            (n in self.N)
-            and (bs in self.B)
-            and (bt in self.B)
-            and (bs, bt) in self.L
-            and not self.routedElsewhere((n, bs, bt), R)
-            and bs not in self.M(n, R)
-            and bt not in self.M(n, R)
-        )
-
-    def is_in_v(self, n, bs, bt, R):
-        return self.is_in_vplace(n, bs, bt, R) or self.is_in_vrelay(
-            n, bs, bt, R
-        )
-
-    def routedElsewhere(self, e, R):
-        return e not in self.Phat(R) and self.alreadyRouted(e[1], e[2], R)
-
-    def alreadyRouted(self, bs, bt, R):
-        # exists subset such that
-        value = _find_elem(
-            powerset(R), lambda path: self.isPathBetween(path, bs, bt)
-        )
-        return value is not None
-
-    def enodes(self, R):
-        result = set()
-        for (u, v, _t) in R:
-            result.add(u)
-            result.add(v)
-        return result
-
-    def Phat(self, R):
-        enodes = self.enodes(R)
         sources = {(self.P(b), b, b) for b in self.S}
         sink = set(((self.P(self.bsink), self.bsink, self.bsink),))
         return enodes.union(sources).union(sink)
 
-    def alreadyPlaced(self, b, R):
-        elem = _find_elem(
-            self.Phat(R), lambda enode: enode[1] == enode[2] == b
+    def paths(self, A):
+        # wrapper for caching, as this is *really* inefficient but I
+        # want to test the actual math, not some optimized version
+        return _paths(frozenset(A))
+
+    def routing(self, bs, bt, A):
+        def _pathsource(path):
+            # first action, first part of connection, source block
+            return path[0][0]
+
+        def _pathtarget(path):
+            # last action, second part of connection, target block
+            return path[-1][1]
+
+        return {
+            path
+            for path in self.paths(A)
+            if self.places(_pathsource(path), bs)
+            and self.places(_pathtarget(path), bt)
+        }
+
+    def M(self, n, A):
+        return {bs for (n_, bs, bt) in self.Phat(A) if n == n_ and bs == bt}
+
+    def C(self, n):
+        return self.embedding.infra.capacity(n)
+
+    def placement(self, e):
+        return no(e) in self.N and sb(e) in self.B and sb(e) == tb(e)
+
+    def canCarry(self, n, b, A):
+        return sum(
+            [self.W(block) for block in self.M(n, A).union((b,))]
+        ) <= self.C(n)
+
+    def placedElsewhere(self, e, A):
+        return exists_elem(
+            self.N, lambda n: n != no(e) and sb(e) in self.M(n, A)
         )
-        if elem is not None:
-            pass
-            # print(f"Found {b} placed on {elem}")
-        return elem is not None
 
-    def placedElsewhere(self, e, R):
-        result = (
-            sb(e) == tb(e)
-            and self.alreadyPlaced(sb(e), R)
-            and e not in self.Phat(R)
+    def relayed(self, b, n, A):
+        return exists_elem(
+            self.B,
+            lambda bprime: b != bprime
+            and (
+                (n, b, bprime) in self.Phat(A)
+                or (n, bprime, b) in self.Phat(A)
+            ),
         )
-        if result:
-            pass
-            # print(f"Determined that {e} is already placed elsewhere")
-        else:
-            pass
-            # print(f"Determined that {e} is NOT already placed elsewhere")
-        return result
 
-    def visitsPlacement(self, path, b):
-        return exists_elem(path, lambda edge: self.isPlacementFor(edge[0], b))
+    def placementValid(self, e, A):
+        return (
+            self.placement(e)
+            and self.canCarry(no(e), sb(e), A)
+            and not self.placedElsewhere(e, A)
+            and not self.relayed(sb(e), no(e), A)
+        )
 
-    def isPlacementFor(self, e, b):
+    def links(self, e):
+        return (sb(e), tb(e)) in self.L
+
+    def routedElsewhere(self, e, A):
+        return e not in self.Phat(A) and len(self.routing(sb(e), tb(e), A)) > 0
+
+    def placed(self, e, A):
+        return sb(e) in self.M(no(e), A) or tb(e) in self.M(no(e), A)
+
+    def places(self, e, b):
         return sb(e) == b and tb(e) == b
 
-    def isPathBetween(self, path, bs, bt):
+    def relayValid(self, e, A):
         return (
-            exists_elem(path, lambda edge: sb(edge[0]) == tb(edge[0]) == bs)
-            and len(path) > 0
-            and true_for_all(
-                path,
-                lambda edge: (
-                    self.isPlacementFor(edge[0], bs)
-                    or sb(edge[0]) != tb(edge[0])
-                )
-                and (
-                    self.isPlacementFor(edge[1], bt)
-                    or (
-                        sb(edge[1]) != tb(edge[1])
-                        and self.hasEdgeFrom(path, edge[1])
-                    )
-                ),
-            )
+            self.links(e)
+            and not self.routedElsewhere(e, A)
+            and not self.placed(e, A)
         )
 
-    def hasEdgeFrom(self, path, e):
-        return exists_elem(path, lambda edge: edge[0] == e)
+    def enodeValid(self, e, A):
+        return self.placementValid(e, A) or self.relayValid(e, A)
 
     def verify_v(self):
         for n in self.N:
             for bs in self.B:
                 for bt in self.B:
                     enode = (n, bs, bt)
-                    should_exist = self.is_in_v(*enode, self.R)
-                    does_exist = enode in self.V
-                    if should_exist and not does_exist:
-                        return (False, f"{enode} should exist but doesn't")
-                    if not should_exist and does_exist:
-                        return (False, f"{enode} shouldn't exist but does")
+                    try:
+                        should_exist = self.enodeValid(enode, self.A)
+                        does_exist = enode in self.V
+                        if should_exist and not does_exist:
+                            return (False, f"{enode} should exist but doesn't")
+                        if not should_exist and does_exist:
+                            return (False, f"{enode} shouldn't exist but does")
+                    except WayTooBigException:
+                        pass  # gave up on checking, too big
         return (True, "")
