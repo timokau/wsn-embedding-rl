@@ -80,7 +80,7 @@ class PartialEmbedding:
     ):
         self.infra = infra
         self.overlay = overlay
-        self._source_mapping = source_mapping
+        self.source_mapping = source_mapping
         self.used_timeslots = -1
 
         self.graph = nx.MultiDiGraph()
@@ -88,7 +88,7 @@ class PartialEmbedding:
         # just for ease of access
         self._by_block = defaultdict(set)
         self._by_node = defaultdict(set)
-        self._taken_edges = dict()
+        self.taken_edges = dict()
         # per-timeslot, more scalable
         self.taken_edges_in = defaultdict(set)
         self._nodes_sending_in = defaultdict(set)
@@ -103,7 +103,7 @@ class PartialEmbedding:
 
     def reset(self):
         """Returns a fresh, identically configured partial embedding"""
-        return PartialEmbedding(self.infra, self.overlay, self._source_mapping)
+        return PartialEmbedding(self.infra, self.overlay, self.source_mapping)
 
     def possibilities(self):
         """Returns a list of possible actions (edges)"""
@@ -184,6 +184,7 @@ class PartialEmbedding:
         of the graph with the consequences. Should only ever be done
         when the enode is the source, the sink or has an incoming chosen
         edge."""
+        # pylint: disable=too-many-branches
         if self.graph.node[enode]["chosen"]:
             return
 
@@ -208,11 +209,20 @@ class PartialEmbedding:
             # remove unnecessary relays going over the same node
             for block in self.overlay.blocks():
                 for option in [
+                    # relay nodes to and from this block on the same node
                     ENode(block, enode.node, enode.acting_as),
                     ENode(enode.acting_as, enode.node, block),
                 ]:
                     if self.graph.has_node(option):
                         self.remove_enode(option)
+        if enode.relay:
+            # remove unnecessary placements going over the same node
+            for option in [
+                ENode(enode.acting_as, enode.node),
+                ENode(enode.target, enode.node),
+            ]:
+                if self.graph.has_node(option):
+                    self.remove_enode(option)
 
     def try_add_edge(self, source: ENode, target: ENode, timeslot: int):
         """Tries to a possible connection to the graph if it is
@@ -293,7 +303,6 @@ class PartialEmbedding:
         self._embed_sink()
         self._embed_sources(source_mapping)
         self.add_timeslot()
-        self._remove_unnecessary_nodes()
 
     def remove_connection(self, source: ENode, target: ENode, timeslot: int):
         """Removes a connection given its source, target and timeslot"""
@@ -395,6 +404,8 @@ class PartialEmbedding:
     def _node_can_carry(self, node, block):
         """Weather or not a node can support the computation for a block
         in a given timeslot"""
+        if self.taken_embeddings.get(block) == node:
+            return True
         needed = 0 if block is None else self.overlay.requirement(block)
         return needed <= self.remaining_capacity(node)
 
@@ -541,6 +552,21 @@ class PartialEmbedding:
         if not DEBUG:
             return (True, None)
 
+        # checking this is very time consuming, better get a more varied
+        # sample and not test every step
+        from numpy import random as rand
+
+        if rand.random() >= 0.01:
+            return (True, None)
+        print("Validating")
+
+        from embedding_paper import Wrapper
+
+        paper_verifier = Wrapper(self)
+        (result, reason) = paper_verifier.verify_v()
+        if not result:
+            return (result, reason)
+
         for (u, v, d) in self.graph.edges(data=True):
             t = d["timeslot"]
             chosen = d["chosen"]
@@ -581,15 +607,6 @@ class PartialEmbedding:
 
         return (True, None)
 
-    def _remove_unnecessary_nodes(self):
-        removed = True
-        while removed:
-            indeg = self.graph.in_degree()
-            removed = False
-            for enode in [n for (n, deg) in indeg if deg == 0]:
-                if self.remove_enode(enode):
-                    removed = True
-
     def take_action(self, source: ENode, target: ENode, timeslot: int):
         """Take an action represented by an edge and update the graph"""
         if (source, target, timeslot) not in self.possibilities():
@@ -600,7 +617,7 @@ class PartialEmbedding:
         assert self._connection_necessary(source, target)
         assert self._connection_feasible(source, target, timeslot)
 
-        self._taken_edges[(source, target)] = timeslot
+        self.taken_edges[(source, target)] = timeslot
         self.taken_edges_in[timeslot].add((source, target))
 
         self.choose_embedding(target)
@@ -608,8 +625,6 @@ class PartialEmbedding:
 
         if timeslot >= self.used_timeslots:
             self.add_timeslot()
-
-        self._remove_unnecessary_nodes()
 
         (result, reason) = self._check_invariants()
         if not result:
