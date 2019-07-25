@@ -20,8 +20,8 @@ class ENode:
         self.acting_as = acting_as
         self.target = target
 
-        self.relay = self.target is not None
-        self.block = self.acting_as if self.target is None else None
+        self.relay = self.target is not None and target != acting_as
+        self.block = self.acting_as if not self.relay else None
 
         if not self.relay:
             self.target = self.acting_as
