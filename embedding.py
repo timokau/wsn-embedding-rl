@@ -338,17 +338,6 @@ class PartialEmbedding:
         capacity = self.known_capacity(source.node, target.node, timeslot)
         return capacity >= thresh
 
-    def _node_already_visited_on_path(self, source, target):
-        # only valid for relays; finishing a links is always okay
-        if not target.relay:
-            return False
-
-        link = (source.acting_as, target.target)
-        visited_nodes = [
-            n.node for (n, t) in self.link_embeddings.get(link, [])
-        ]
-        return target.node in visited_nodes
-
     def _path_already_started(self, source, target):
         if source.relay:
             return False
@@ -360,9 +349,16 @@ class PartialEmbedding:
     def _source_already_in_path(self, source, target):
         link = (source.acting_as, target.target)
         path = self.link_embeddings.get(link, [])
-        node_path = [enode.node for (enode, _ts) in path]
+        enode_path = [enode for (enode, _ts) in path]
         # last one doesn't count
-        return source.node in node_path[:-1]
+        return source in enode_path[:-1]
+
+    def _target_already_in_path(self, source, target):
+        link = (source.acting_as, target.target)
+        path = self.link_embeddings.get(link, [])
+        enode_path = [enode for (enode, _ts) in path]
+        # last one doesn't count
+        return target in enode_path
 
     def _connection_necessary(self, source, target):
         (unnecessary, _reason) = self._why_connection_not_necessary(
@@ -372,12 +368,12 @@ class PartialEmbedding:
 
     def _why_connection_not_necessary(self, source, target):
         """Returns why an edge is or is not necessary"""
-        if self._node_already_visited_on_path(source, target):
-            return (True, "Node already visited on path")
         if self._path_already_started(source, target):
             return (True, "Path already started")
         if self._source_already_in_path(source, target):
             return (True, "Source already in path")
+        if self._target_already_in_path(source, target):
+            return (True, "Target already in path")
         return (False, "")
 
     def _connection_feasible(self, source, target, timeslot):
