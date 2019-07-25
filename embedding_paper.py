@@ -1,5 +1,5 @@
 """Implements the exact constraints described in the paper. Pure, but slow."""
-from itertools import chain, combinations, permutations, islice, product
+from itertools import chain, combinations, permutations, product
 from functools import lru_cache, partial
 import math
 from embedding import PartialEmbedding, ENode
@@ -55,63 +55,6 @@ def sb(edge):
 def tb(edge):
     (_n, _bs, bt) = edge
     return bt
-
-
-@lru_cache(maxsize=2 ** 23)
-def _check_path_consistency(path):
-    # recursion for more caching
-    if len(path) == 0:
-        return False
-    if len(path) == 1:
-        return True
-
-    first_target = path[0][1]
-    second_source = path[1][0]
-    if first_target[1] == first_target[2]:
-        # non-relay node in the middle
-        return False
-    if first_target != second_source:
-        return False
-    return _check_path_consistency(path[1:])
-
-
-@lru_cache(maxsize=None)
-def _paths_for_subset(subset):
-    return {
-        permutation
-        for permutation in permutations(subset)
-        if _check_path_consistency(permutation)
-    }
-
-
-@lru_cache()
-def _T(t, A, N, B, V):
-    def verify_fun(tupl, n):
-        (bs, bt, v) = tupl
-        return no(v) != n and ((n, bs, bt), v, t) in A
-
-    return {
-        n for n in N if exists_elem(product(B, B, V), partial(verify_fun, n=n))
-    }
-
-
-class WayTooBigException(Exception):
-    pass
-
-
-@lru_cache()
-def _paths(A):
-    # doesn't get much more inefficient than this
-    result = set()
-
-    # take care not to OOM when counting the elements
-    subsets = len(list(islice(powerset(A), 2 ** 13)))
-    if subsets > 2 ** 12:  # takes too long
-        raise WayTooBigException("Won't even try.")
-
-    for subset in powerset(A):
-        result = result.union(_paths_for_subset(subset))
-    return result
 
 
 class Wrapper:
@@ -174,25 +117,12 @@ class Wrapper:
         sink = set(((self.P(self.bsink), self.bsink, self.bsink),))
         return enodes.union(sources).union(sink)
 
-    def paths(self, A):
-        # wrapper for caching, as this is *really* inefficient but I
-        # want to test the actual math, not some optimized version
-        return _paths(frozenset(A))
-
     def routing(self, bs, bt, A):
-        def _pathsource(path):
-            # first action, first part of connection, source block
-            return path[0][0]
-
-        def _pathtarget(path):
-            # last action, second part of connection, target block
-            return path[-1][1]
-
         return {
-            path
-            for path in self.paths(A)
-            if self.places(_pathsource(path), bs)
-            and self.places(_pathtarget(path), bt)
+            (u, v, t)
+            for (u, v, t) in A
+            if (sb(u) == bs and tb(u) in {bs, bt})
+            and (tb(v) == bt and sb(v) in {bs, bt})
         }
 
     def M(self, n, A):
@@ -236,7 +166,7 @@ class Wrapper:
         return (sb(e), tb(e)) in self.L
 
     def routedElsewhere(self, e, A):
-        return e not in self.Phat(A) and len(self.routing(sb(e), tb(e), A)) > 0
+        return e not in self.Phat(A) and self.completelyRouted(sb(e), tb(e), A)
 
     def placed(self, e, A):
         return sb(e) in self.M(no(e), A) or tb(e) in self.M(no(e), A)
@@ -259,17 +189,14 @@ class Wrapper:
             for bs in self.B:
                 for bt in self.B:
                     enode = (n, bs, bt)
-                    try:
-                        should_exist = self.enodeValid(enode, self.A)
-                        does_exist = enode in self.V
-                        if should_exist != does_exist:
-                            self.print_state()
-                        if should_exist and not does_exist:
-                            return (False, f"{enode} should exist but doesn't")
-                        if not should_exist and does_exist:
-                            return (False, f"{enode} shouldn't exist but does")
-                    except WayTooBigException:
-                        pass  # gave up on checking, too big
+                    should_exist = self.enodeValid(enode, self.A)
+                    does_exist = enode in self.V
+                    if should_exist != does_exist:
+                        self.print_state()
+                    if should_exist and not does_exist:
+                        return (False, f"{enode} should exist but doesn't")
+                    if not should_exist and does_exist:
+                        return (False, f"{enode} shouldn't exist but does")
         return (True, "")
 
     def advancesPath(self, u, v, t, A):
@@ -334,7 +261,9 @@ class Wrapper:
         return True
 
     def T(self, t, A):
-        return _T(t, A, self.N, self.B, self.V)
+        return {
+            a[0][0] for a in A if a[2] == t
+        }
 
     def datarateMet(self, u, v, t, A):
         sending = self.T(t, A).difference((no(u),))
@@ -355,10 +284,16 @@ class Wrapper:
             and tb(a[1]) == link[1],
         )
 
+    def completelyRouted(self, bs, bt, A):
+        routing = self.routing(bs, bt, A)
+        return exists_elem(
+            routing, lambda a: self.places(a[0], bs)
+        ) and exists_elem(routing, lambda a: self.places(a[1], bt))
+
     def alreadyRoutedOtherwise(self, u, v, t, A):
-        r = list(self.routing(sb(u), tb(v), A))
-        if len(r) > 0:
-            if (u, v, t) not in r[0]:
+        if self.completelyRouted(sb(u), tb(v), A):
+            r = self.routing(sb(u), tb(v), A)
+            if (u, v, t) not in r:
                 return True
         return False
 
@@ -402,23 +337,20 @@ class Wrapper:
     def verify_e(self):
         for u in self.V:
             for v in self.V:
-                for t in range(100):  # testing all N is not quite practical
-                    try:
-                        should_exist = self.edgeInE(u, v, t, self.A)
-                        does_exist = (u, v, t) in self.E
-                        if should_exist != does_exist:
-                            self.print_state()
-                        if should_exist and not does_exist:
-                            reason = self.embedding.why_infeasible(
-                                ENode(sb(u), no(u), tb(u)),
-                                ENode(sb(v), no(v), tb(v)),
-                                t,
-                            )[1]
-                            return (
-                                False,
-                                f"{u}, {v}, {t} should exist but doesn't"
-                                f" because: {reason}",
-                            )
-                    except WayTooBigException:
-                        pass
+                for t in range(max(self.U) + 5):  # testing all N is not quite practical
+                    should_exist = self.edgeInE(u, v, t, self.A)
+                    does_exist = (u, v, t) in self.E
+                    if should_exist != does_exist:
+                        self.print_state()
+                    if should_exist and not does_exist:
+                        reason = self.embedding.why_infeasible(
+                            ENode(sb(u), no(u), tb(u)),
+                            ENode(sb(v), no(v), tb(v)),
+                            t,
+                        )[1]
+                        return (
+                            False,
+                            f"{u}, {v}, {t} should exist but doesn't"
+                            f" because: {reason}",
+                        )
         return (True, "")
