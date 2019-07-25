@@ -556,7 +556,7 @@ class PartialEmbedding:
         # sample and not test every step
         from numpy import random as rand
 
-        if rand.random() >= 0.01:
+        if rand.random() >= 0.1:
             return (True, None)
         print("Validating")
 
