@@ -91,23 +91,19 @@ class OverlayNetwork:
         )
 
     def __str__(self):
-        result = "Overlay with:\n"
-        result += f"- {len(self.sources)} sources:\n"
+        result = "overlay = OverlayNetwork()\n"
         for source in self.sources:
             s = self._block_to_verbose_str(source)
-            result += f"  - add_source{s}\n"
-        result += f"- {len(self.intermediates)} intermediates:\n"
+            result += f"{source} = overlay.add_source{s}\n"
         for intermediate in self.intermediates:
             i = self._block_to_verbose_str(intermediate)
-            result += f"  - add_intermediate{i}\n"
-        result += f"- one sink:\n"
+            result += f"{intermediate} = overlay.add_intermediate{i}\n"
         s = self._block_to_verbose_str(self.sink)
-        result += f"  - set_sink{s}\n"
+        result += f"{self.sink} = overlay.set_sink{s}\n"
 
         links = self.graph.edges()
-        result += f"- {len(links)} links:\n"
         for (u, v) in links:
-            result += f"  - add_link({u}, {v})\n"
+            result += f"overlay.add_link({u}, {v})\n"
         return result
 
 

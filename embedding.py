@@ -642,6 +642,10 @@ class PartialEmbedding:
         result = "Embedding with:\n"
         result += self.infra.__str__()
         result += self.overlay.__str__()
+        result += (
+            f"embedding = PartialEmbedding"
+            f"(infra, overlay, source_mapping={self.source_mapping})"
+        )
         return result
 
     def construct_link_mappings(self):

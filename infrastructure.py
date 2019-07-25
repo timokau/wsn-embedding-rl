@@ -217,18 +217,15 @@ class InfrastructureNetwork:
         return f"N{self._last_id}"
 
     def __str__(self):
-        result = "Infrastructure with:\n"
-        result += f"- {len(self.sources)} sources:\n"
+        result = "infra = InfrastructureNetwork():\n"
         for source in self.sources:
             s = self._node_to_verbose_str(source)
-            result += f"  - add_source{s}\n"
-        result += f"- {len(self.intermediates)} intermediates:\n"
+            result += f"{source} = infra.add_source{s}\n"
         for intermediate in self.intermediates:
             i = self._node_to_verbose_str(intermediate)
-            result += f"  - add_intermediate{i}\n"
-        result += "- one sink:\n"
+            result += f"{intermediate} = infra.add_intermediate{i}\n"
         s = self._node_to_verbose_str(self.sink)
-        result += f"  - set_sink{s}\n"
+        result += f"{self.sink} = infra.set_sink{s}\n"
         return result
 
     def _node_to_verbose_str(self, node):
@@ -236,7 +233,12 @@ class InfrastructureNetwork:
         pos = f"({round(pos[0], 1)}, {round(pos[1], 1)})"
         tp = round(self.graph.nodes[node]["transmit_power_dbm"], 1)
         cap = round(self.capacity(node), 1)
-        return f'(name="{node}", pos={pos}, power={tp}dBm, capacity={cap})'
+        return (
+            f'(name="{node}", '
+            f"pos={pos}, "
+            f"transmit_power_dbm={tp}, "
+            f"capacity={cap})"
+        )
 
 
 def draw_infra(
