@@ -405,28 +405,26 @@ class PartialEmbedding:
         needed = 0 if block is None else self.overlay.requirement(block)
         return needed <= self.remaining_capacity(node)
 
-    def _node_sending_other_data_in_timeslot(self, enode, timeslot):
+    def _node_sending(self, node, timeslot):
         # the same embedding can send multiple times within a timeslot
         # (broadcasting results), but others cannot (which would send
         # other data)
+        result = set()
         for (u, v) in self.taken_edges_in[timeslot]:
             # loops within a node are okay
-            if (
-                u.node == enode.node
-                and u.acting_as != enode.acting_as
-                and not u.node == v.node
-            ):
-                return True
-        return False
+            if u.node == node and not u.node == v.node:
+                result.add(u.acting_as)
+        return result
 
-    def _node_receiving_data_in_timeslot(self, node, timeslot):
+    def _node_receiving(self, node, timeslot):
         """We work on the half-duplex assumption: sending and receiving
         is mutually exclusive."""
+        receiving = set()
         for (u, v) in self.taken_edges_in[timeslot]:
             # loops within a node are okay
             if v.node == node and u.node != v.node:
-                return True
-        return False
+                receiving.add(u.acting_as)
+        return receiving
 
     def _connection_feasible_in_timeslot(self, source, target, timeslot):
         (infeasible, _reason) = self._why_infeasible_in_timeslot(
@@ -436,15 +434,26 @@ class PartialEmbedding:
 
     def _why_infeasible_in_timeslot(self, source, target, timeslot):
         """Returns why an edge is or is not feasible in a timeslot"""
+        # pylint: disable = too-many-return-statements
         # loops are always valid
         if source.node == target.node:
             return (False, "")
 
-        if self._node_sending_other_data_in_timeslot(source, timeslot):
-            return (True, "Node already sending other data in timeslot")
+        source_sending = self._node_sending(source.node, timeslot)
+        target_sending = self._node_sending(target.node, timeslot)
+        source_receiving = self._node_receiving(source.node, timeslot)
+        target_receiving = self._node_receiving(target.node, timeslot)
+        if len(source_sending.difference((source.acting_as,))) > 0:
+            return (True, "Source already sending other data in timeslot")
 
-        if self._node_receiving_data_in_timeslot(source.node, timeslot):
-            return (True, "Node already receiving data in timeslot")
+        if len(target_sending) > 0:
+            return (True, "Target already sending data in timeslot")
+
+        if len(source_receiving) > 0:
+            return (True, "Source already receiving data in timeslot")
+
+        if len(target_receiving.difference((source.acting_as,))) > 0:
+            return (True, "Target already receiving other data in timeslot")
 
         if not self._datarate_valid(source, target, timeslot):
             return (True, "Datarate is not valid")
