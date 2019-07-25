@@ -103,7 +103,7 @@ class WSNEnvironment(gym.Env):
             else:
                 source = graph.node[u]["represents"]
                 target = graph.node[v]["represents"]
-                timeslot = d[TIMESLOT_IDX]
+                timeslot = int(d[TIMESLOT_IDX])
                 self.actions.append((source, target, timeslot))
 
         return gt
