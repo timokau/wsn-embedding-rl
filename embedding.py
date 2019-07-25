@@ -571,6 +571,9 @@ class PartialEmbedding:
         (result, reason) = paper_verifier.verify_v()
         if not result:
             return (result, reason)
+        (result, reason) = paper_verifier.verify_e()
+        if not result:
+            return (result, reason)
 
         for (u, v, d) in self.graph.edges(data=True):
             t = d["timeslot"]

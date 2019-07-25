@@ -1,7 +1,8 @@
 """Implements the exact constraints described in the paper. Pure, but slow."""
-from itertools import chain, combinations, permutations, islice
-from functools import lru_cache
-from embedding import PartialEmbedding
+from itertools import chain, combinations, permutations, islice, product
+from functools import lru_cache, partial
+import math
+from embedding import PartialEmbedding, ENode
 
 # This follows the naming and semantics of the paper as closely as
 # possible.
@@ -66,6 +67,9 @@ def _check_path_consistency(path):
 
     first_target = path[0][1]
     second_source = path[1][0]
+    if first_target[1] == first_target[2]:
+        # non-relay node in the middle
+        return False
     if first_target != second_source:
         return False
     return _check_path_consistency(path[1:])
@@ -80,43 +84,65 @@ def _paths_for_subset(subset):
     }
 
 
+@lru_cache()
+def _T(t, A, N, B, V):
+    def verify_fun(tupl, n):
+        (bs, bt, v) = tupl
+        return no(v) != n and ((n, bs, bt), v, t) in A
+
+    return {
+        n for n in N if exists_elem(product(B, B, V), partial(verify_fun, n=n))
+    }
+
+
 class WayTooBigException(Exception):
     pass
 
 
 @lru_cache()
 def _paths(A):
-    print("Recomputing")
     # doesn't get much more inefficient than this
     result = set()
 
     # take care not to OOM when counting the elements
     subsets = len(list(islice(powerset(A), 2 ** 13)))
-    print(subsets)
     if subsets > 2 ** 12:  # takes too long
         raise WayTooBigException("Won't even try.")
 
-    for i, subset in enumerate(powerset(A)):
-        if i % 1000 == 0:
-            print(_check_path_consistency.cache_info())
+    for subset in powerset(A):
         result = result.union(_paths_for_subset(subset))
-    print("Done")
     return result
 
 
 class Wrapper:
+    # pylint: disable=too-many-public-methods
     def __init__(self, embedding: PartialEmbedding):
         self.embedding = embedding
-        self.V = [_enode_to_triple(enode) for enode in embedding.nodes()]
-        self.N = embedding.infra.nodes()
-        self.B = embedding.overlay.blocks()
-        self.L = embedding.overlay.graph.edges()
-        self.S = embedding.overlay.sources
+        self.V = frozenset(
+            [_enode_to_triple(enode) for enode in embedding.nodes()]
+        )
+        self.E = frozenset(
+            [
+                (_enode_to_triple(u), _enode_to_triple(v), t)
+                for (u, v, t) in embedding.graph.edges(keys=True)
+            ]
+        )
+        self.N = frozenset(embedding.infra.nodes())
+        self.B = frozenset(embedding.overlay.blocks())
+        self.L = frozenset(embedding.overlay.graph.edges())
+        self.S = frozenset(embedding.overlay.sources)
         self.bsink = embedding.overlay.sink
-        self.A = [
-            (_enode_to_triple(source), _enode_to_triple(target), timeslot)
-            for ((source, target), timeslot) in embedding.taken_edges.items()
-        ]
+        self.A = frozenset(
+            [
+                (_enode_to_triple(source), _enode_to_triple(target), timeslot)
+                for (
+                    (source, target),
+                    timeslot,
+                ) in embedding.taken_edges.items()
+            ]
+        )
+        # close enough to the variant in the paper
+        self.U = {t for (u, v, t) in self.A}
 
     def P(self, b):
         if b == self.bsink:
@@ -128,6 +154,15 @@ class Wrapper:
 
     def W(self, b):
         return self.embedding.overlay.requirement(b)
+
+    def R(self, b):
+        return self.embedding.overlay.datarate(b)
+
+    def D(self, n1, n2, ninf):
+        sinr = self.embedding.infra.sinr(n1, n2, frozenset(ninf))
+        bandwidth = self.embedding.infra.bandwidth
+        shannon_capacity = bandwidth * math.log(1 + 10 ** (sinr / 10), 2)
+        return shannon_capacity
 
     def Phat(self, A):
         enodes = set()
@@ -227,10 +262,163 @@ class Wrapper:
                     try:
                         should_exist = self.enodeValid(enode, self.A)
                         does_exist = enode in self.V
+                        if should_exist != does_exist:
+                            self.print_state()
                         if should_exist and not does_exist:
                             return (False, f"{enode} should exist but doesn't")
                         if not should_exist and does_exist:
                             return (False, f"{enode} shouldn't exist but does")
                     except WayTooBigException:
                         pass  # gave up on checking, too big
+        return (True, "")
+
+    def advancesPath(self, u, v, t, A):
+        if self.placement(v):
+            return True
+        if exists_elem(A, lambda a: a != (u, v, t) and a[1] == v):
+            # loop
+            return False
+        if not self.placement(u) and exists_elem(
+            A, lambda a: a != (u, v, t) and a[0] == u
+        ):
+            # already continued from here
+            return False
+        return True
+
+    def edgeRepresentsLink(self, e1, e2):
+        return (sb(e1), tb(e2)) in self.L
+
+    def consistent(self, e1, e2):
+        source_block = sb(e1)
+        target_block = tb(e2)
+        if e1 == e2:
+            # more specifically: if its a relay and the relay was already
+            # visited
+            return False
+        return (
+            (source_block, target_block) in self.L
+            and tb(e1) in {target_block, sb(e1)}
+            and sb(e2) in {source_block, tb(e2)}
+        )
+
+    def radioNecessary(self, e1, e2):
+        return no(e1) != no(e2)
+
+    def sendingData(self, n, t, A):
+        return {
+            sb(a[0])
+            for a in A
+            if a[2] == t and no(a[0]) == n and no(a[1]) != n
+        }
+
+    def receivingData(self, n, t, A):
+        return {
+            sb(a[0])
+            for a in A
+            if a[2] == t and no(a[1]) == n and no(a[0]) != n
+        }
+
+    def radiosFree(self, u, v, t, A):
+        u_sends = self.sendingData(no(u), t, A)
+        u_receives = self.receivingData(no(u), t, A)
+        v_sends = self.sendingData(no(v), t, A)
+        v_receives = self.receivingData(no(v), t, A)
+        data = sb(u)
+        if (
+            len(u_sends.difference((data,))) > 0
+            or len(v_receives.difference((data,))) > 0
+            or len(u_receives) > 0
+            or len(v_sends) > 0
+        ):
+            return False
+        return True
+
+    def T(self, t, A):
+        return _T(t, A, self.N, self.B, self.V)
+
+    def datarateMet(self, u, v, t, A):
+        sending = self.T(t, A).difference((no(u),))
+        datarate_available = self.D(no(u), no(v), sending)
+        required = self.R(sb(u))
+        return datarate_available >= required
+
+    def timeslotExists(self, t):
+        return t == 0 or (t - 1) in self.U
+
+    def restartsPath(self, u, v, t, A):
+        link = (sb(u), tb(v))
+        return self.placement(u) and exists_elem(
+            A,
+            lambda a: a != (u, v, t)
+            and a[0] == u
+            and sb(a[1]) == link[0]
+            and tb(a[1]) == link[1],
+        )
+
+    def alreadyRoutedOtherwise(self, u, v, t, A):
+        r = list(self.routing(sb(u), tb(v), A))
+        if len(r) > 0:
+            if (u, v, t) not in r[0]:
+                return True
+        return False
+
+    def edgeValid(self, u, v, t, A):
+        return (
+            self.timeslotExists(t)
+            and self.consistent(u, v)
+            and (not self.radioNecessary(u, v) or self.radiosFree(u, v, t, A))
+            and self.datarateMet(u, v, t, A)
+            and not self.alreadyTakenInOtherTs(u, v, t, A)
+            and not self.alreadyRoutedOtherwise(u, v, t, A)
+            and not self.restartsPath(u, v, t, A)
+            and self.advancesPath(u, v, t, A)
+        )
+
+    def alreadyTakenInOtherTs(self, u, v, t, A):
+        return exists_elem(A, lambda a: a[0] == u and a[1] == v and a[2] != t)
+
+    def _all_other_remain_valid(self, u, v, t, A):
+        return true_for_all(
+            A, lambda a: self.edgeValid(*a, A.union(((u, v, t),)))
+        )
+
+    def edgeInE(self, u, v, t, A):
+        return self.edgeValid(u, v, t, A) and self._all_other_remain_valid(
+            u, v, t, A
+        )
+
+    def print_state(self):
+        # to debug mismatches
+        print("====Actions====")
+        for a in self.A:
+            print(a)
+
+        print("====Links====")
+        print(self.L)
+
+        print("====Embedding====")
+        print(self.embedding)
+
+    def verify_e(self):
+        for u in self.V:
+            for v in self.V:
+                for t in range(100):  # testing all N is not quite practical
+                    try:
+                        should_exist = self.edgeInE(u, v, t, self.A)
+                        does_exist = (u, v, t) in self.E
+                        if should_exist != does_exist:
+                            self.print_state()
+                        if should_exist and not does_exist:
+                            reason = self.embedding.why_infeasible(
+                                ENode(sb(u), no(u), tb(u)),
+                                ENode(sb(v), no(v), tb(v)),
+                                t,
+                            )[1]
+                            return (
+                                False,
+                                f"{u}, {v}, {t} should exist but doesn't"
+                                f" because: {reason}",
+                            )
+                    except WayTooBigException:
+                        pass
         return (True, "")
