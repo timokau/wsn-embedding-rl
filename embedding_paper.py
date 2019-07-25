@@ -9,6 +9,13 @@ from embedding import PartialEmbedding, ENode
 # pylint: disable=invalid-name, missing-docstring, no-self-use
 # pylint: disable=too-many-instance-attributes
 
+from pycallgraph import PyCallGraph, Config, GlobbingFilter
+from pycallgraph.output import GraphvizOutput
+config = Config()
+config.trace_filter = GlobbingFilter(exclude=["pycallgraph.*"])
+graphviz = GraphvizOutput(output_file=f"pc.png")
+pcg = PyCallGraph(output=graphviz, config=config)
+
 
 def _enode_to_triple(enode):
     return (
@@ -185,6 +192,7 @@ class Wrapper:
         return self.placementValid(e, A) or self.relayValid(e, A)
 
     def verify_v(self):
+        # pcg.start(reset=False)
         for n in self.N:
             for bs in self.B:
                 for bt in self.B:
@@ -197,6 +205,7 @@ class Wrapper:
                         return (False, f"{enode} should exist but doesn't")
                     if not should_exist and does_exist:
                         return (False, f"{enode} shouldn't exist but does")
+        # pcg.done()
         return (True, "")
 
     def advancesPath(self, u, v, t, A):
@@ -323,6 +332,7 @@ class Wrapper:
         )
 
     def print_state(self):
+        return
         # to debug mismatches
         print("====Actions====")
         for a in self.A:
@@ -335,6 +345,7 @@ class Wrapper:
         print(self.embedding)
 
     def verify_e(self):
+        # pcg.start(reset=False)
         for u in self.V:
             for v in self.V:
                 for t in range(max(self.U) + 5):  # testing all N is not quite practical
@@ -353,4 +364,5 @@ class Wrapper:
                             f"{u}, {v}, {t} should exist but doesn't"
                             f" because: {reason}",
                         )
+        # pcg.done()
         return (True, "")

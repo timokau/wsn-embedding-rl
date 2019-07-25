@@ -9,7 +9,7 @@ import networkx as nx
 from infrastructure import InfrastructureNetwork
 from overlay import OverlayNetwork
 
-DEBUG = False
+DEBUG = True
 
 
 class ENode:

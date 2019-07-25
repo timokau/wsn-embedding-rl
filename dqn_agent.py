@@ -95,7 +95,7 @@ def run_training(
 
     git_label = _git_describe()
     time_label = datetime.datetime.now().isoformat()
-    logdir = f"logs/{time_label}-{git_label}-{experiment_name}"
+    logdir = f"/tmp/logs/{time_label}-{git_label}-{experiment_name}"
     logger.configure(dir=logdir, format_strs=["stdout", "csv", "tensorboard"])
 
     with open(f"{logdir}/config.pkl", "wb") as config_file:

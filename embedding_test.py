@@ -926,7 +926,6 @@ def test_source_and_sink_capacity_check():
 
     def embedding_fails(overlay):
         source_block = list(overlay.sources)[0]
-        print(f"bso is {source_block}")
         failed = False
         try:
             _embedding = PartialEmbedding(
@@ -1066,7 +1065,6 @@ def test_half_duplex():
     eso = ENode(bso, nso)
     esi = ENode(bsi, nsi)
     ein = ENode(bso, ni, bsi)
-    print(embedding.possibilities())
     assert embedding.take_action(eso, ein, 0)
     assert not embedding.take_action(ein, esi, 0)
 
