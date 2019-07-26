@@ -197,19 +197,20 @@ class Wrapper:
                         return (False, f"{enode} shouldn't exist but does")
         return (True, "")
 
+    def alreadyReached(self, b, e, A):
+        return exists_elem(A, lambda a: ta(a) == e and sb(so(a)) == b)
+
+    def alreadyForwarded(self, b, e, A):
+        return exists_elem(A, lambda a: so(a) == e and tb(ta(a)) == b)
+
     def advancesPath(self, u, v, t, A):
-        # no advancement
+        if (u, v, t) in A:
+            return True
         if u == v:
             return False
-        if exists_elem(
-            A, lambda a: a != (u, v, t) and ta(a) == v and sb(so(a)) == sb(u)
-        ):
-            # the info has already reached v
+        if self.alreadyReached(sb(u), v, A):
             return False
-        if not self.placement(u) and exists_elem(
-            A, lambda a: a != (u, v, t) and so(a) == u
-        ):
-            # the path was already continued from u
+        if self.alreadyForwarded(tb(v), u, A):
             return False
         return True
 
@@ -263,16 +264,6 @@ class Wrapper:
     def timeslotExists(self, t):
         return t == 0 or (t - 1) in self.U
 
-    def restartsPath(self, u, v, t, A):
-        link = (sb(u), tb(v))
-        return self.placement(u) and exists_elem(
-            A,
-            lambda a: a != (u, v, t)
-            and so(a) == u
-            and sb(ta(a)) == link[0]
-            and tb(ta(a)) == link[1],
-        )
-
     def completelyRouted(self, bs, bt, A):
         routing = self.routing(bs, bt, A)
         return exists_elem(
@@ -294,7 +285,6 @@ class Wrapper:
             and self.radiosFree(u, v, t, A)
             and self.datarateMet(u, v, t, A)
             and not self.alreadyRoutedOtherwise(u, v, t, A)
-            and not self.restartsPath(u, v, t, A)
             and self.advancesPath(u, v, t, A)
         )
 
