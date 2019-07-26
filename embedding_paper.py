@@ -28,19 +28,31 @@ def true_for_all(iterable, predicate):
     return not exists_elem(iterable, lambda x: not predicate(x))
 
 
-def no(edge):
-    (n, _bs, _bt) = edge
+def no(enode):
+    (n, _bs, _bt) = enode
     return n
 
 
-def sb(edge):
-    (_n, bs, _bt) = edge
+def sb(enode):
+    (_n, bs, _bt) = enode
     return bs
 
 
-def tb(edge):
-    (_n, _bs, bt) = edge
+def tb(enode):
+    (_n, _bs, bt) = enode
     return bt
+
+
+def so(edge):
+    return edge[0]
+
+
+def ta(edge):
+    return edge[1]
+
+
+def k(edge):
+    return edge[2]
 
 
 class Wrapper:
@@ -107,8 +119,8 @@ class Wrapper:
         return {
             (u, v, t)
             for (u, v, t) in A
-            if (sb(u) == bs and tb(u) in {bs, bt})
-            and (tb(v) == bt and sb(v) in {bs, bt})
+            if (self.places(u, bs) or sb(u) == bs and tb(u) == bt)
+            and (self.places(v, bt) or sb(v) == bs and tb(v) == bt)
         }
 
     def M(self, n, A):
@@ -186,32 +198,27 @@ class Wrapper:
         return (True, "")
 
     def advancesPath(self, u, v, t, A):
-        if self.placement(v):
-            return True
-        if exists_elem(A, lambda a: a != (u, v, t) and a[1] == v):
-            # loop
+        # no advancement
+        if u == v:
+            return False
+        if exists_elem(
+            A, lambda a: a != (u, v, t) and ta(a) == v and sb(so(a)) == sb(u)
+        ):
+            # the info has already reached v
             return False
         if not self.placement(u) and exists_elem(
-            A, lambda a: a != (u, v, t) and a[0] == u
+            A, lambda a: a != (u, v, t) and so(a) == u
         ):
-            # already continued from here
+            # the path was already continued from u
             return False
         return True
 
-    def edgeRepresentsLink(self, e1, e2):
-        return (sb(e1), tb(e2)) in self.L
+    def edgeRepresentsLink(self, u, v):
+        return (sb(u), tb(v)) in self.L
 
-    def consistent(self, e1, e2):
-        source_block = sb(e1)
-        target_block = tb(e2)
-        if e1 == e2:
-            # more specifically: if its a relay and the relay was already
-            # visited
-            return False
-        return (
-            (source_block, target_block) in self.L
-            and tb(e1) in {target_block, sb(e1)}
-            and sb(e2) in {source_block, tb(e2)}
+    def consistent(self, u, v):
+        return (self.placement(u) or tb(u) == tb(v)) and (
+            self.placement(v) or sb(v) == sb(u)
         )
 
     def radioNecessary(self, e1, e2):
@@ -219,16 +226,16 @@ class Wrapper:
 
     def sendingData(self, n, t, A):
         return {
-            sb(a[0])
+            sb(so(a))
             for a in A
-            if a[2] == t and no(a[0]) == n and no(a[1]) != n
+            if k(a) == t and no(so(a)) == n and no(ta(a)) != n
         }
 
     def receivingData(self, n, t, A):
         return {
-            sb(a[0])
+            sb(so(a))
             for a in A
-            if a[2] == t and no(a[1]) == n and no(a[0]) != n
+            if k(a) == t and no(ta(a)) == n and no(so(a)) != n
         }
 
     def radiosFree(self, u, v, t, A):
@@ -237,17 +244,14 @@ class Wrapper:
         v_sends = self.sendingData(no(v), t, A)
         v_receives = self.receivingData(no(v), t, A)
         data = sb(u)
-        if (
-            len(u_sends.difference((data,))) > 0
-            or len(v_receives.difference((data,))) > 0
-            or len(u_receives) > 0
-            or len(v_sends) > 0
-        ):
+        if len(u_sends.difference((data,))) > 0 or len(u_receives) > 0:
+            return False
+        if len(v_receives.difference((data,))) > 0 or len(v_sends) > 0:
             return False
         return True
 
     def T(self, t, A):
-        return {a[0][0] for a in A if a[2] == t and no(a[0]) != no(a[1])}
+        return {so(a)[0] for a in A if k(a) == t and no(so(a)) != no(ta(a))}
 
     def datarateMet(self, u, v, t, A):
         if no(u) == no(v):
@@ -265,16 +269,16 @@ class Wrapper:
         return self.placement(u) and exists_elem(
             A,
             lambda a: a != (u, v, t)
-            and a[0] == u
-            and sb(a[1]) == link[0]
-            and tb(a[1]) == link[1],
+            and so(a) == u
+            and sb(ta(a)) == link[0]
+            and tb(ta(a)) == link[1],
         )
 
     def completelyRouted(self, bs, bt, A):
         routing = self.routing(bs, bt, A)
         return exists_elem(
-            routing, lambda a: self.places(a[0], bs)
-        ) and exists_elem(routing, lambda a: self.places(a[1], bt))
+            routing, lambda a: self.places(so(a), bs)
+        ) and exists_elem(routing, lambda a: self.places(ta(a), bt))
 
     def alreadyRoutedOtherwise(self, u, v, t, A):
         if self.completelyRouted(sb(u), tb(v), A):
@@ -286,6 +290,7 @@ class Wrapper:
     def edgeValid(self, u, v, t, A):
         return (
             self.timeslotExists(t)
+            and self.edgeRepresentsLink(u, v)
             and self.consistent(u, v)
             and (not self.radioNecessary(u, v) or self.radiosFree(u, v, t, A))
             and self.datarateMet(u, v, t, A)
@@ -296,7 +301,9 @@ class Wrapper:
         )
 
     def alreadyTakenInOtherTs(self, u, v, t, A):
-        return exists_elem(A, lambda a: a[0] == u and a[1] == v and a[2] != t)
+        return exists_elem(
+            A, lambda a: so(a) == u and ta(a) == v and k(a) != t
+        )
 
     def _all_other_remain_valid(self, u, v, t, A):
         return true_for_all(
