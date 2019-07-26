@@ -236,9 +236,12 @@ class Wrapper:
             if k(a) == t and no(ta(a)) == n and no(so(a)) != n
         }
 
+    def transmissionPossible(self, u, v, t, A):
+        return no(u) == no(v) or (
+            self.radiosFree(u, v, t, A) and self.datarateMet(u, v, t, A)
+        )
+
     def radiosFree(self, u, v, t, A):
-        if no(u) == no(v):
-            return True
         u_sends = self.sendingData(no(u), t, A)
         u_receives = self.receivingData(no(u), t, A)
         v_sends = self.sendingData(no(v), t, A)
@@ -251,11 +254,9 @@ class Wrapper:
         return True
 
     def T(self, t, A):
-        return {so(a)[0] for a in A if k(a) == t and no(so(a)) != no(ta(a))}
+        return {no(so(a)) for a in A if k(a) == t and no(so(a)) != no(ta(a))}
 
     def datarateMet(self, u, v, t, A):
-        if no(u) == no(v):
-            return True
         sending = self.T(t, A).difference((no(u),))
         datarate_available = self.D(no(u), no(v), sending)
         required = self.R(sb(u))
@@ -275,8 +276,7 @@ class Wrapper:
             self.timeslotExists(t)
             and self.edgeRepresentsLink(u, v)
             and self.consistent(u, v)
-            and self.radiosFree(u, v, t, A)
-            and self.datarateMet(u, v, t, A)
+            and self.transmissionPossible(u, v, t, A)
             and self.advancesPath(u, v, t, A)
         )
 
