@@ -270,13 +270,6 @@ class Wrapper:
             routing, lambda a: self.places(so(a), bs)
         ) and exists_elem(routing, lambda a: self.places(ta(a), bt))
 
-    def alreadyRoutedOtherwise(self, u, v, t, A):
-        if self.completelyRouted(sb(u), tb(v), A):
-            r = self.routing(sb(u), tb(v), A)
-            if (u, v, t) not in r:
-                return True
-        return False
-
     def edgeValid(self, u, v, t, A):
         return (
             self.timeslotExists(t)
@@ -284,7 +277,6 @@ class Wrapper:
             and self.consistent(u, v)
             and self.radiosFree(u, v, t, A)
             and self.datarateMet(u, v, t, A)
-            and not self.alreadyRoutedOtherwise(u, v, t, A)
             and self.advancesPath(u, v, t, A)
         )
 
