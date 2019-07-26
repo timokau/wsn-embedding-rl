@@ -242,16 +242,12 @@ class Wrapper:
         )
 
     def radiosFree(self, u, v, t, A):
-        u_sends = self.sendingData(no(u), t, A)
-        u_receives = self.receivingData(no(u), t, A)
-        v_sends = self.sendingData(no(v), t, A)
-        v_receives = self.receivingData(no(v), t, A)
-        data = sb(u)
-        if len(u_sends.difference((data,))) > 0 or len(u_receives) > 0:
-            return False
-        if len(v_receives.difference((data,))) > 0 or len(v_sends) > 0:
-            return False
-        return True
+        return (
+            self.sendingData(no(u), t, A).issubset((sb(u),))
+            and self.receivingData(no(u), t, A) == set()
+            and self.sendingData(no(v), t, A) == set()
+            and self.receivingData(no(v), t, A).issubset((sb(u),))
+        )
 
     def T(self, t, A):
         return {no(so(a)) for a in A if k(a) == t and no(so(a)) != no(ta(a))}
