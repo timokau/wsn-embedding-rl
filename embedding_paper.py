@@ -247,9 +247,11 @@ class Wrapper:
         return True
 
     def T(self, t, A):
-        return {a[0][0] for a in A if a[2] == t}
+        return {a[0][0] for a in A if a[2] == t and no(a[0]) != no(a[1])}
 
     def datarateMet(self, u, v, t, A):
+        if no(u) == no(v):
+            return True
         sending = self.T(t, A).difference((no(u),))
         datarate_available = self.D(no(u), no(v), sending)
         required = self.R(sb(u))
