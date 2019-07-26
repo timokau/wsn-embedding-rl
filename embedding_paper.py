@@ -329,6 +329,11 @@ class Wrapper:
                     does_exist = (u, v, t) in self.E
                     if should_exist != does_exist:
                         self.print_state()
+                    if does_exist and not should_exist:
+                        return (
+                            False,
+                            f"{u}, {v}, {t} shouldn't exist but does",
+                        )
                     if should_exist and not does_exist:
                         reason = self.embedding.why_infeasible(
                             ENode(sb(u), no(u), tb(u)),
