@@ -368,6 +368,8 @@ class PartialEmbedding:
 
     def _why_connection_not_necessary(self, source, target):
         """Returns why an edge is or is not necessary"""
+        if source == target:
+            return (True, "Source equals target")
         if self._path_already_started(source, target):
             return (True, "Path already started")
         if self._source_already_in_path(source, target):
