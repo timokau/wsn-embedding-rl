@@ -221,9 +221,6 @@ class Wrapper:
             self.placement(v) or sb(v) == sb(u)
         )
 
-    def radioNecessary(self, e1, e2):
-        return no(e1) != no(e2)
-
     def sendingData(self, n, t, A):
         return {
             sb(so(a))
@@ -239,6 +236,8 @@ class Wrapper:
         }
 
     def radiosFree(self, u, v, t, A):
+        if no(u) == no(v):
+            return True
         u_sends = self.sendingData(no(u), t, A)
         u_receives = self.receivingData(no(u), t, A)
         v_sends = self.sendingData(no(v), t, A)
@@ -292,7 +291,7 @@ class Wrapper:
             self.timeslotExists(t)
             and self.edgeRepresentsLink(u, v)
             and self.consistent(u, v)
-            and (not self.radioNecessary(u, v) or self.radiosFree(u, v, t, A))
+            and self.radiosFree(u, v, t, A)
             and self.datarateMet(u, v, t, A)
             and not self.alreadyRoutedOtherwise(u, v, t, A)
             and not self.restartsPath(u, v, t, A)
