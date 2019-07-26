@@ -294,15 +294,9 @@ class Wrapper:
             and self.consistent(u, v)
             and (not self.radioNecessary(u, v) or self.radiosFree(u, v, t, A))
             and self.datarateMet(u, v, t, A)
-            and not self.alreadyTakenInOtherTs(u, v, t, A)
             and not self.alreadyRoutedOtherwise(u, v, t, A)
             and not self.restartsPath(u, v, t, A)
             and self.advancesPath(u, v, t, A)
-        )
-
-    def alreadyTakenInOtherTs(self, u, v, t, A):
-        return exists_elem(
-            A, lambda a: so(a) == u and ta(a) == v and k(a) != t
         )
 
     def _all_other_remain_valid(self, u, v, t, A):
