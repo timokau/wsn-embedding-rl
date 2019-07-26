@@ -1,6 +1,4 @@
 """Implements the exact constraints described in the paper. Pure, but slow."""
-from itertools import chain, combinations, permutations, product
-from functools import lru_cache, partial
 import math
 from embedding import PartialEmbedding, ENode
 
@@ -20,26 +18,14 @@ def _enode_to_triple(enode):
 
 def exists_elem(iterable, predicate):
     """Existence quantifier"""
-    return _find_elem(iterable, predicate) is not None
-
-
-def _find_elem(iterable, predicate):
     for value in iterable:
         if predicate(value):
-            return value
-    return None
+            return True
+    return False
 
 
 def true_for_all(iterable, predicate):
-    for value in iterable:
-        if not predicate(value):
-            return False
-    return True
-
-
-def powerset(iterable):
-    s = list(iterable)
-    return chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))
+    return not exists_elem(iterable, lambda x: not predicate(x))
 
 
 def no(edge):
@@ -261,9 +247,7 @@ class Wrapper:
         return True
 
     def T(self, t, A):
-        return {
-            a[0][0] for a in A if a[2] == t
-        }
+        return {a[0][0] for a in A if a[2] == t}
 
     def datarateMet(self, u, v, t, A):
         sending = self.T(t, A).difference((no(u),))
@@ -337,7 +321,8 @@ class Wrapper:
     def verify_e(self):
         for u in self.V:
             for v in self.V:
-                for t in range(max(self.U) + 5):  # testing all N is not quite practical
+                # testing all N is not quite practical
+                for t in range(max(self.U) + 5):
                     should_exist = self.edgeInE(u, v, t, self.A)
                     does_exist = (u, v, t) in self.E
                     if should_exist != does_exist:
