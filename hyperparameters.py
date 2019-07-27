@@ -1,6 +1,5 @@
 """Commonly used hyperparameters and utility functions"""
 
-import math
 import numpy as np
 import generator as g
 from features import features_by_name
@@ -17,9 +16,7 @@ GENERATOR_DEFAULTS = {
     "pairwise_connection": lambda r: r.rand() < 0.01,
     "block_weight_dist": lambda r: g.truncnorm(r, mean=5, low=0, sd=2),
     # mean equivalent to a linear SINRth of 20, which is what marvelo uses
-    "requirement_dist": lambda r: g.truncnorm(
-        r, mean=math.log(1 + 20, 2), low=0, sd=1
-    ),
+    "requirement_dist": lambda r: g.truncnorm(r, mean=4, low=0, sd=1),
     "num_sources_dist": lambda r: round(g.truncnorm(r, mean=2, sd=1, low=1)),
     "connection_choice": lambda r, a: r.choice(a),
 }
