@@ -47,7 +47,7 @@ DEFAULT = {
     "train_freq": 2,
     "batch_size": 32,
     "early_exit_factor": 1.5,
-    "num_processing_steps": 20,
+    "num_processing_steps": 40,
     "latent_size": 16,
     "num_layers": 5,
     "seedgen": lambda: STATE.randint(0, 2 ** 32),
