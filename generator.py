@@ -183,7 +183,7 @@ class Generator:
                 not_accessible_from_source.add(node)
 
         # make sure all nodes are reachable from a source
-        for node in sorted(not_accessible_from_source):
+        for node in rand.permutation(tuple(not_accessible_from_source)):
             connection = self.connection_choice(
                 rand, sorted(accessible_from_source)
             )
@@ -191,7 +191,7 @@ class Generator:
             accessible_from_source.add(node)
 
         # make sure all nodes can reach the sink
-        for node in sorted(no_path_to_sink):
+        for node in rand.permutation(tuple(no_path_to_sink)):
             connection = self.connection_choice(rand, sorted(has_path_to_sink))
             overlay.add_link(node, connection)
             has_path_to_sink.add(node)
