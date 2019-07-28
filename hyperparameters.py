@@ -60,7 +60,7 @@ DEFAULT = {
     "buffer_size": 50000,
     "lr": 5e-4,
     "grad_norm_clipping": 5,
-    "gamma": 1.0,
+    "gamma": 0.9,
     "target_network_update_freq": 500,
     "train_freq": 2,
     "batch_size": 32,
