@@ -73,7 +73,7 @@ DEFAULT = {
     "prioritized": True,
     "features": DEFAULT_FEATURES,
     "generator_args": GENERATOR_DEFAULTS,
-    "restart_reward": -10,
+    "restart_reward": 0,
     "success_reward": 0,
     "additional_timeslot_reward": -1,
     "exploration_fraction": 0.2,
