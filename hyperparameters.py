@@ -1,5 +1,6 @@
 """Commonly used hyperparameters and utility functions"""
 
+import math
 import numpy as np
 import generator as g
 from features import features_by_name
@@ -18,6 +19,23 @@ GENERATOR_DEFAULTS = {
     # mean equivalent to a linear SINRth of 20, which is what marvelo uses
     "requirement_dist": lambda r: g.truncnorm(r, mean=4, low=0, sd=1),
     "num_sources_dist": lambda r: round(g.truncnorm(r, mean=2, sd=1, low=1)),
+    "connection_choice": lambda r, a: r.choice(a),
+}
+
+MARVELO_DEFAULTS = {
+    # 4-9 nodes total, including source+sink
+    "interm_nodes_dist": lambda r: r.randint(2, 7 + 1),
+    "pos_dist": lambda r: r.uniform(low=(0, 0), high=(25, 25)),
+    "capacity_dist": lambda r: r.randint(21, 21 * (2 + r.rand())),
+    # always 1 watt
+    "power_dist": lambda r: 30,
+    # 3-6 blocks total, including source+sink
+    "interm_blocks_dist": lambda r: r.randint(1, 4 + 1),
+    "pairwise_connection": lambda r: False,
+    "block_weight_dist": lambda r: r.rand() * 20,
+    # equivalent to a constant linear SINRth of 20
+    "requirement_dist": lambda r: math.log(20 + 1, 2),
+    "num_sources_dist": lambda r: 1,
     "connection_choice": lambda r, a: r.choice(a),
 }
 
