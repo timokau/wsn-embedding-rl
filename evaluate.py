@@ -89,11 +89,6 @@ def marvelo_results_to_csvs(results, dirname):
     # pylint: disable=too-many-locals
     by_block = process_marvelo_results(results)
 
-    try:
-        os.mkdir(dirname)
-    except FileExistsError:
-        pass
-
     all_gaps = []
     all_times = []
     for (block, block_results) in by_block.items():
@@ -158,6 +153,11 @@ def main():
     else:
         model_file = find_latest_model_in_pwd()
     print(f"Evaluating {model_file}, saving results to {target_dir}")
+
+    try:
+        os.mkdir(target_dir)
+    except FileExistsError:
+        pass
 
     config_location = os.path.join(os.path.dirname(model_file), "config.pkl")
     features = load_config_from_file(config_location)
