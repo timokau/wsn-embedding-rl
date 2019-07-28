@@ -62,7 +62,7 @@ DEFAULT = {
     "grad_norm_clipping": 5,
     "gamma": 0.9,
     "target_network_update_freq": 500,
-    "train_freq": 2,
+    "train_freq": 4,
     "batch_size": 32,
     "early_exit_factor": np.infty,
     "num_processing_steps": 40,
