@@ -62,6 +62,10 @@ def compare_marvelo_with_agent(act, features, marvelo_dir="marvelo_data"):
             problem_generator=lambda: (embedding, None),
             features=features,
             early_exit_factor=np.infty,
+            # rewards don't really matter
+            additional_timeslot_reward=-1,
+            restart_reward=0,
+            success_reward=0,
             seedgen=None,
         )
         (_agent_reward, agent_ts, elapsed) = play_episode(act, env)

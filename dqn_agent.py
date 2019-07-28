@@ -81,8 +81,14 @@ def run_training(
     learning_starts,
     buffer_size,
     lr,
+    gamma,
+    grad_norm_clipping,
+    target_network_update_freq,
     features,
     generator_args,
+    restart_reward,
+    success_reward,
+    additional_timeslot_reward,
 ):
     """Trains the agent with the given hyperparameters"""
     parallel_gen = ParallelGenerator(Generator(**generator_args), seedgen)
@@ -91,6 +97,9 @@ def run_training(
         early_exit_factor=early_exit_factor,
         seedgen=seedgen,
         problem_generator=parallel_gen.new_instance,
+        restart_reward=restart_reward,
+        success_reward=success_reward,
+        additional_timeslot_reward=additional_timeslot_reward,
     )
 
     git_label = _git_describe()
@@ -131,6 +140,9 @@ def run_training(
         learning_starts=learning_starts,
         buffer_size=buffer_size,
         lr=lr,
+        gamma=gamma,
+        grad_norm_clipping=grad_norm_clipping,
+        target_network_update_freq=target_network_update_freq,
         checkpoint_freq=1000,
         eval_freq=1000,
         eval_hook=partial(_eval_hook, features=features),

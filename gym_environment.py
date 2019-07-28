@@ -70,10 +70,21 @@ class WSNEnvironment(gym.Env):
     # pylint: disable=too-many-instance-attributes
 
     def __init__(
-        self, problem_generator, features, early_exit_factor, seedgen
+        # pylint: disable=too-many-arguments
+        self,
+        problem_generator,
+        features,
+        early_exit_factor,
+        seedgen,
+        additional_timeslot_reward,
+        restart_reward,
+        success_reward,
     ):
         self.problem_generator = problem_generator
         self._features = features
+        self._additional_timeslot_reward = additional_timeslot_reward
+        self._restart_reward = restart_reward
+        self._succssess_reward = success_reward
 
         node_dim = sum([feature.node_dim for feature in self._features])
         # always has to include filter ("possible") and edge id
@@ -113,9 +124,13 @@ class WSNEnvironment(gym.Env):
         ts_before = self.env.used_timeslots
         assert self.env.take_action(source, sink, timeslot)
 
-        reward = ts_before - self.env.used_timeslots
+        extra_timeslots = self.env.used_timeslots - ts_before
+        reward = self._additional_timeslot_reward * extra_timeslots
         self.total_reward += reward
         done = self.env.is_complete()
+
+        if done:
+            reward += self._succssess_reward
 
         blocks = len(self.env.overlay.blocks())
         links = len(self.env.overlay.links())
@@ -151,7 +166,7 @@ class WSNEnvironment(gym.Env):
             self.restarts += 1
             # make it easier for the network to figure out that resets
             # are bad
-            reward -= 10
+            reward += self._restart_reward
 
         self._last_ob = self._get_observation()
 
