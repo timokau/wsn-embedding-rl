@@ -33,8 +33,23 @@ def load_agent_from_file(name):
     return act
 
 
-def play_episode(act, env):
+def play_episode(act, embedding, features):
     """Play an entire episode and report the reward"""
+    env = gym_environment.WSNEnvironment(
+        # pylint: disable=cell-var-from-loop
+        problem_generator=lambda: (embedding, None),
+        features=features,
+        early_exit_factor=np.infty,
+        # rewards don't really matter
+        additional_timeslot_reward=-1,
+        restart_reward=0,
+        success_reward=0,
+        seedgen=None,
+    )
+    return _play_episode_in_env(act, env)
+
+
+def _play_episode_in_env(act, env):
     obs = env.reset()
     total_reward = 0
     before = time.time()
@@ -57,18 +72,9 @@ def compare_marvelo_with_agent(act, features, marvelo_dir="marvelo_data"):
         if embedding is None:
             continue
         (nodes, blocks, seed) = info
-        env = gym_environment.WSNEnvironment(
-            # pylint: disable=cell-var-from-loop
-            problem_generator=lambda: (embedding, None),
-            features=features,
-            early_exit_factor=np.infty,
-            # rewards don't really matter
-            additional_timeslot_reward=-1,
-            restart_reward=0,
-            success_reward=0,
-            seedgen=None,
+        (_agent_reward, agent_ts, elapsed) = play_episode(
+            act, embedding, features
         )
-        (_agent_reward, agent_ts, elapsed) = play_episode(act, env)
         results.append(
             (nodes, blocks, seed, marvelo_result, agent_ts, elapsed)
         )
