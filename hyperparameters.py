@@ -59,7 +59,7 @@ DEFAULT = {
     "learning_starts": 1000,
     "buffer_size": 50000,
     "lr": 5e-4,
-    "grad_norm_clipping": 10,
+    "grad_norm_clipping": 5,
     "gamma": 1.0,
     "target_network_update_freq": 500,
     "train_freq": 2,
