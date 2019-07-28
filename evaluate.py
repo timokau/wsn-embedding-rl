@@ -12,6 +12,7 @@ import dill
 
 import gym_environment
 import marvelo_adapter
+from generator import Generator
 import baseline_agent
 
 
@@ -168,6 +169,52 @@ def find_latest_model_in_pwd(regex=r"model.*\.pkl"):
     return options[-1][0]
 
 
+def _evaluate_with_size(act, features, blocks, nodes, runs):
+    assert nodes >= 2
+    assert blocks >= 2
+    assert runs >= 1
+    from hyperparameters import GENERATOR_DEFAULTS
+
+    # default python3 hash is salted, we want this reproducible
+    gen_args = GENERATOR_DEFAULTS.copy()
+    gen_args["interm_nodes_dist"] = lambda r: nodes - 2
+    gen_args["interm_blocks_dist"] = lambda r: blocks - 2
+    gen_args["num_sources_dist"] = lambda r: 1
+    generator = Generator(**gen_args)
+    # hacky way to get the same rng for the same blocks, nodes
+    # combination. Hashes would be nicer, but those are salted in
+    # python3.
+    seed = (blocks << 20) + nodes
+    rng = np.random.RandomState(seed)
+    gaps = []
+    times = []
+    for _i in range(runs):
+        (embedding, baseline) = generator.validated_random(rng)
+        (_rew, ts, elapsed) = play_episode(act, embedding, features)
+        gaps.append(gap(baseline, ts))
+        times.append(elapsed)
+    return (gaps, times)
+
+
+def evaluate_scalability(act, features, dirname, runs):
+    """Evaluates scalability beyond the training range"""
+    for blocks in range(5, 10 + 1):
+        filename = f"{dirname}/scalability_{blocks}.csv"
+        with open(filename, "w") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(("x", "y", "error-", "error+"))
+            for nodes in range(5, 15 + 1):
+                (gaps, _times) = _evaluate_with_size(
+                    act, features, blocks, nodes, runs
+                )
+                gap_mean = np.mean(gaps)
+                gap_sem = stats.sem(gaps)
+                print(
+                    f"b{blocks}n{nodes}: {round(gap_mean)} +- {round(gap_sem)}"
+                )
+                writer.writerow((nodes, gap_mean, gap_sem, gap_sem))
+
+
 def main():
     """Runs the evaluation and formats the results"""
     import sys
@@ -190,6 +237,7 @@ def main():
     config_location = os.path.join(os.path.dirname(model_file), "config.pkl")
     features = load_config_from_file(config_location)
     act = load_agent_from_file(model_file)
+    # evaluate_scalability(act, features, target_dir, 100)
     results = compare_marvelo_with_agent(act, features)
     marvelo_results_to_csvs(results, target_dir)
 
