@@ -14,7 +14,7 @@ GENERATOR_DEFAULTS = {
     "capacity_dist": lambda r: g.truncnorm(r, mean=35, sd=10, low=0),
     "power_dist": lambda r: r.normal(30, 2),
     "interm_blocks_dist": lambda r: round(g.truncnorm(r, mean=3, sd=2, low=0)),
-    "pairwise_connection": lambda r: r.rand() < 0.01,
+    "pairwise_connection": lambda r: r.rand() < 0.1,
     "block_weight_dist": lambda r: g.truncnorm(r, mean=10, low=0, sd=7),
     # mean equivalent to a linear SINRth of 20, which is what marvelo uses
     "requirement_dist": lambda r: g.truncnorm(r, mean=4, low=0, sd=1),
