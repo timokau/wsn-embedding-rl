@@ -12,6 +12,7 @@ import dill
 
 import gym_environment
 import marvelo_adapter
+import baseline_agent
 
 
 def load_config_from_file(name):
@@ -73,10 +74,13 @@ def compare_marvelo_with_agent(act, features, marvelo_dir="marvelo_data"):
             continue
         (nodes, blocks, seed) = info
         (_agent_reward, agent_ts, elapsed) = play_episode(
-            act, embedding, features
+            act, embedding.reset(), features
+        )
+        greedy_ts = baseline_agent.play_episode(
+            embedding.reset(), 10, np.random
         )
         results.append(
-            (nodes, blocks, seed, marvelo_result, agent_ts, elapsed)
+            (nodes, blocks, seed, marvelo_result, agent_ts, greedy_ts, elapsed)
         )
     return results
 
@@ -89,9 +93,18 @@ def gap(baseline, heuristic):
 def process_marvelo_results(results):
     """Analyzes results of marvelo comparison"""
     by_block = defaultdict(list)
-    for (nodes, blocks, _seed, marvelo_result, agent_ts, elapsed) in results:
+    for (
+        nodes,
+        blocks,
+        _seed,
+        marvelo_result,
+        agent_ts,
+        greedy_ts,
+        elapsed,
+    ) in results:
         agent_gap = gap(marvelo_result, agent_ts)
-        by_block[blocks].append((nodes, agent_gap, elapsed))
+        greedy_gap = gap(marvelo_result, greedy_ts)
+        by_block[blocks].append((nodes, agent_gap, greedy_gap, elapsed))
     return by_block
 
 
@@ -105,21 +118,25 @@ def marvelo_results_to_csvs(results, dirname):
     for (block, block_results) in by_block.items():
         filename = f"{dirname}/marvelo_b{block}.csv"
         agent_gaps = defaultdict(list)
+        greedy_gaps = defaultdict(list)
         times = defaultdict(list)
-        for (nodes, agent_gap, elapsed) in block_results:
+        for (nodes, agent_gap, greedy_gap, elapsed) in block_results:
             agent_gaps[nodes].append(agent_gap)
+            greedy_gaps[nodes].append(greedy_gap)
             all_gaps.append(agent_gap)
             all_times.append(1000 * elapsed)
             times[nodes].append(1000 * elapsed)
 
         with open(filename, "w") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(("x", "y", "error-", "error+"))
-            for (nodes, gap_vals) in agent_gaps.items():
-                mean = np.mean(gap_vals)
-                err_low = stats.sem(gap_vals)
-                err_high = stats.sem(gap_vals)
-                writer.writerow((f"{nodes} nodes", mean, err_low, err_high))
+            writer.writerow(("x", "y", "greedy", "error-", "error+"))
+            for nodes in agent_gaps.keys():
+                mean = np.mean(agent_gaps[nodes])
+                greedy_mean = np.mean(greedy_gaps[nodes])
+                sem = stats.sem(agent_gaps[nodes])
+                writer.writerow(
+                    (f"{nodes} nodes", mean, greedy_mean, sem, sem)
+                )
 
         filename = f"{dirname}/times_b{block}.csv"
         with open(filename, "w") as csvfile:
