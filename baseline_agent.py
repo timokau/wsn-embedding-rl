@@ -9,7 +9,7 @@ from embedding import PartialEmbedding
 def act(emb: PartialEmbedding, randomness, rand):
     """Take a semi-greedy action"""
     min_ts_actions = None
-    possible_actions = emb.possibilities()
+    possible_actions = sorted(emb.possibilities())
 
     min_ts = inf
     for (u, v, t) in possible_actions:
@@ -28,6 +28,14 @@ def act(emb: PartialEmbedding, randomness, rand):
 
     if len(not_relay_actions) > 0:
         preferred_actions = not_relay_actions
+
+    same_node_options = []
+    for (u, v, t) in preferred_actions:
+        if u.node == v.node:
+            same_node_options.append((u, v, t))
+
+    if len(same_node_options) > 0:
+        preferred_actions = same_node_options
 
     # break out of reset loops by acting random every once in a while
     if rand.rand() < randomness:
