@@ -75,12 +75,17 @@ def compare_marvelo_with_agent(act, features, marvelo_dir="marvelo_data"):
     return results
 
 
+def gap(baseline, heuristic):
+    """Computes the heuristic gap"""
+    return 100 * (heuristic - baseline) / baseline
+
+
 def process_marvelo_results(results):
     """Analyzes results of marvelo comparison"""
     by_block = defaultdict(list)
     for (nodes, blocks, _seed, marvelo_result, agent_ts, elapsed) in results:
-        gap = 100 * (agent_ts - marvelo_result) / marvelo_result
-        by_block[blocks].append((nodes, gap, elapsed))
+        agent_gap = gap(marvelo_result, agent_ts)
+        by_block[blocks].append((nodes, agent_gap, elapsed))
     return by_block
 
 
@@ -93,18 +98,18 @@ def marvelo_results_to_csvs(results, dirname):
     all_times = []
     for (block, block_results) in by_block.items():
         filename = f"{dirname}/marvelo_b{block}.csv"
-        gaps = defaultdict(list)
+        agent_gaps = defaultdict(list)
         times = defaultdict(list)
-        for (nodes, gap, elapsed) in block_results:
-            gaps[nodes].append(gap)
-            all_gaps.append(gap)
+        for (nodes, agent_gap, elapsed) in block_results:
+            agent_gaps[nodes].append(agent_gap)
+            all_gaps.append(agent_gap)
             all_times.append(1000 * elapsed)
             times[nodes].append(1000 * elapsed)
 
         with open(filename, "w") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(("x", "y", "error-", "error+"))
-            for (nodes, gap_vals) in gaps.items():
+            for (nodes, gap_vals) in agent_gaps.items():
                 mean = np.mean(gap_vals)
                 err_low = stats.sem(gap_vals)
                 err_high = stats.sem(gap_vals)
