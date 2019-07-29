@@ -39,8 +39,8 @@ def _eval_hook(act, log, features):
     all_gaps = []
     all_times = []
     for blocks in results.keys():
-        gaps = [gap for (nodes, gap, elapsed) in results[blocks]]
-        times = [gap for (nodes, gap, elapsed) in results[blocks]]
+        gaps = [gap for (nodes, gap, _, elapsed) in results[blocks]]
+        times = [elapsed for (nodes, gap, _, elapsed) in results[blocks]]
         log.record_tabular(f"marvelo b{blocks} gap", np.mean(gaps))
         all_gaps.extend(gaps)
         all_times.extend(times)
