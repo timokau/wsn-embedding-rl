@@ -168,7 +168,8 @@ SUPPORTED_FEATURES = [
     ),
     EdgeFeature("capacity", _capacity),
     EdgeFeature(
-        "additional_timeslot", lambda emb, u, v, t: t >= emb.used_timeslots
+        "additional_timeslot",
+        lambda emb, u, v, t: u.node != v.node and t >= emb.used_timeslots,
     ),
     EdgeFeature(
         "datarate_requirement",
