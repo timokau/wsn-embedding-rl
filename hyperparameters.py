@@ -43,9 +43,10 @@ DEFAULT_FEATURES = [
     features_by_name()[name]
     for name in [
         "node_relay",
-        "node_compute_fraction",
         "edge_additional_timeslot",
         "edge_datarate_fraction",
+        "edge_capacity",
+        "node_options_lost",
     ]
 ]
 
